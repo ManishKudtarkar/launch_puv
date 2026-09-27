@@ -135,6 +135,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </p>
         </div>
 
+        {/* Back to Main Dashboard */}
+        <div className="px-2 pt-2 pb-1">
+          <Link
+            href="/student"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-[12px] text-[0.74rem] font-medium transition-all duration-200 font-[family-name:var(--font-ui)] group"
+            style={{
+              background: "hsl(25 65% 45% / 0.10)",
+              border: "1px solid hsl(25 65% 45% / 0.25)",
+              color: "var(--accent-light)",
+            }}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="w-3.5 h-3.5 flex-shrink-0 group-hover:-translate-x-0.5 transition-transform duration-200"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+            <span
+              className="whitespace-nowrap overflow-hidden transition-all duration-300"
+              style={{ opacity: collapsed ? 0 : 1, maxWidth: collapsed ? 0 : 160 }}
+            >
+              Main Dashboard
+            </span>
+          </Link>
+        </div>
+
         {/* Divider */}
         <div className="mx-5 h-px" style={{ background: "linear-gradient(90deg, transparent, hsl(0 0% 80% / 0.4), transparent)" }} />
 
@@ -211,7 +243,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {user?.name}
               </p>
               <p className="text-[0.6rem] text-[var(--col-dim)] truncate font-[family-name:var(--font-mono)]">
-                Admin
+                Event Admin
               </p>
             </div>
             {!collapsed && (

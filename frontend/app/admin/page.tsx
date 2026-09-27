@@ -52,6 +52,39 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      {/* ── Event Admin Workspace Banner ─────────────────────────────────── */}
+      <div
+        className="mb-7 rounded-[20px] px-6 py-5 flex items-center gap-4"
+        style={{
+          background: "linear-gradient(120deg, hsl(25 65% 45% / 0.10) 0%, hsl(25 55% 38% / 0.06) 100%)",
+          border: "1px solid hsl(25 65% 45% / 0.22)",
+          boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.55)",
+        }}
+      >
+        {/* Icon */}
+        <div
+          className="w-10 h-10 rounded-[13px] flex items-center justify-center flex-shrink-0"
+          style={{
+            background: "linear-gradient(135deg, var(--accent), var(--accent-dark))",
+            boxShadow: "0 3px 12px hsl(25 65% 45% / 0.30)",
+          }}
+        >
+          <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+        </div>
+
+        {/* Text */}
+        <div className="min-w-0">
+          <p className="text-[0.62rem] uppercase tracking-[0.2em] text-[var(--accent)] font-[family-name:var(--font-mono)] font-bold mb-0.5">
+            Event Admin Workspace
+          </p>
+          <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] leading-[1.4]">
+            Event Management, Registration Analytics &amp; Attendance Control
+          </p>
+        </div>
+      </div>
+
       <div className="mb-8">
         <p className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-2">Welcome back</p>
         <h1 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
