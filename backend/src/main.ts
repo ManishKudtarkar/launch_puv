@@ -26,8 +26,20 @@ async function bootstrap() {
     }),
   );
 
+  // Build allowed origins from env + hardcoded fallbacks
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://puverse-kappa.vercel.app',
+    'https://puverse.onrender.com',
+  ];
+
+  const frontendUrl = process.env.FRONTEND_URL;
+  if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
+    allowedOrigins.push(frontendUrl);
+  }
+
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://puv-production-1.onrender.com'],
+    origin: allowedOrigins,
     credentials: true,
   });
 
