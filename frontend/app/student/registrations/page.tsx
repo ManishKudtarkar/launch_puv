@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Squircle } from "@squircle-js/react";
 import { api, getApiErrorMessage, type Registration, type Event as ApiEvent } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
-import { Search, Calendar, Eye, Ticket, X, QrCode, AlertCircle, Trash2, CalendarSearch } from "lucide-react";
+import { Search, Calendar, Eye, Ticket, X, AlertCircle, Trash2, CalendarSearch } from "lucide-react";
 
 type RegWithMeta = Registration & {
   event: ApiEvent;
@@ -32,43 +32,6 @@ function getInitials(title?: string) {
   return title.slice(0, 2).toUpperCase();
 }
 
-function QRBlock({ code, size = 150 }: { code: string; size?: number }) {
-  const cells = 11;
-  const hash = code.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const grid = Array.from({ length: cells }, (_, row) =>
-    Array.from({ length: cells }, (_, col) => {
-      const isCorner =
-        (row < 3 && col < 3) ||
-        (row < 3 && col >= cells - 3) ||
-        (row >= cells - 3 && col < 3);
-      const isPattern = (row * 7 + col * 13 + hash) % 3 === 0;
-      return isCorner || isPattern;
-    }),
-  );
-  const cellSize = size / cells;
-
-  return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ borderRadius: 10 }}>
-      <rect width={size} height={size} fill="white" rx="10" />
-      {grid.map((row, ri) =>
-        row.map((filled, ci) =>
-          filled ? (
-            <rect
-              key={`${ri}-${ci}`}
-              x={ci * cellSize}
-              y={ri * cellSize}
-              width={cellSize}
-              height={cellSize}
-              fill="#1A1A1A"
-              rx="1"
-            />
-          ) : null,
-        ),
-      )}
-    </svg>
-  );
-}
-
 export default function StudentRegistrationsPage() {
   const user = useAuthStore((s) => s.user);
   const [registrations, setRegistrations] = useState<RegWithMeta[]>([]);
@@ -78,8 +41,6 @@ export default function StudentRegistrationsPage() {
   const [filter, setFilter] = useState<"all" | "ACTIVE" | "CANCELLED">("all");
   const [cancelTarget, setCancelTarget] = useState<RegWithMeta | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [ticketModalItem, setTicketModalItem] = useState<RegWithMeta | null>(null);
-
   const fetchRegistrations = async () => {
     if (!user) {
       setLoading(false);
@@ -348,16 +309,15 @@ export default function StudentRegistrationsPage() {
                 </Link>
               </div>
 
-              {/* Tickets Column (Peach/Orange pill button) */}
+              {/* Tickets Column — navigate to /student/tickets */}
               <div>
-                <button
-                  type="button"
-                  onClick={() => setTicketModalItem(item)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white text-[0.76rem] font-bold font-[family-name:var(--font-display)] transition-all cursor-pointer shadow-sm"
+                <Link
+                  href="/student/tickets"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white text-[0.76rem] font-bold font-[family-name:var(--font-display)] transition-all shadow-sm"
                 >
-                  <QrCode className="h-3.5 w-3.5" />
+                  <Ticket className="h-3.5 w-3.5" />
                   <span>Ticket</span>
-                </button>
+                </Link>
               </div>
 
               {/* Cancel Column */}
@@ -381,86 +341,6 @@ export default function StudentRegistrationsPage() {
           );
         })}
       </section>
-
-      {/* Ticket QR Modal */}
-      {ticketModalItem && (() => {
-        const ev = ticketModalItem.event;
-        const rawDate = ev.startTime ?? ev.eventDate ?? new Date().toISOString();
-        const d = new Date(rawDate);
-        const ticketCode = `PUV-${(ev.title || "EV").slice(0, 3).toUpperCase()}-${ticketModalItem.id.slice(0, 4).toUpperCase()}`;
-        const regData = ticketModalItem.registrationData as Record<string, string> | undefined;
-
-        return (
-          <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/45 backdrop-blur-md"
-              onClick={() => setTicketModalItem(null)}
-            />
-            <Squircle
-              cornerRadius={28}
-              cornerSmoothing={1}
-              className="relative z-10 w-full max-w-[370px] p-6 shadow-2xl overflow-hidden"
-              style={{
-                background: "hsl(0 0% 98% / 0.96)",
-                backdropFilter: "blur(30px)",
-                WebkitBackdropFilter: "blur(30px)",
-                border: "1px solid hsl(0 0% 100% / 0.8)",
-              }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-[var(--line-soft)] mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-[var(--accent)]/15 flex items-center justify-center text-[var(--accent)]">
-                    <Ticket className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-[0.66rem] font-bold uppercase tracking-[0.14em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
-                    Entry Pass & Ticket
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setTicketModalItem(null)}
-                  className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center text-[var(--col-secondary)] hover:text-[var(--col-primary)] transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              <div className="text-center mb-5">
-                <h3 className="text-[1.05rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] leading-snug">
-                  {ev.title}
-                </h3>
-                <p className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] mt-1">
-                  {d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} • {ev.venue || "Campus Seminar Hall"}
-                </p>
-                {regData?.EMAIL && (
-                  <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mt-0.5">
-                    {regData.EMAIL}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex flex-col items-center justify-center p-5 rounded-[20px] bg-white border border-slate-100 shadow-inner mb-4">
-                <QRBlock code={ticketCode} size={150} />
-                <p className="mt-3 text-[0.72rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tracking-[0.08em]">
-                  {ticketCode}
-                </p>
-              </div>
-
-              <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)] text-center mb-4">
-                Scan this QR code at the event entrance for fast check-in.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => setTicketModalItem(null)}
-                className="w-full py-2.5 rounded-[12px] bg-[var(--col-primary)] hover:bg-[var(--col-primary)]/90 text-white text-[0.78rem] font-bold font-[family-name:var(--font-display)] transition-all cursor-pointer"
-              >
-                Done
-              </button>
-            </Squircle>
-          </div>
-        );
-      })()}
 
       {/* Cancel Confirmation Modal */}
       {cancelTarget && (
