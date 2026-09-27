@@ -5,9 +5,9 @@ import Link from "next/link";
 import { Squircle } from "@squircle-js/react";
 import { useDemoStore } from "@/store/demo-store";
 import { useAuthStore } from "@/store/auth-store";
-import { api } from "@/lib/api-client";
+import { api, type Event as ApiEvent } from "@/lib/api-client";
 import { formatDate } from "@/lib/utils";
-import { CalendarPlus, ClipboardList } from "lucide-react";
+import { CalendarPlus, ClipboardList, QrCode, ShieldCheck, ArrowRight } from "lucide-react";
 
 export default function StudentDashboard() {
   const user = useDemoStore((s) => s.user);
@@ -20,6 +20,7 @@ export default function StudentDashboard() {
   const isEventAdmin = authUser?.role === "EVENT_ADMIN" || user?.backendRole === "EVENT_ADMIN" || user?.role === "admin";
 
   const [realRegs, setRealRegs] = useState<{ id: string; eventTitle: string; registeredAt: string; status: string }[]>([]);
+  const [volunteerEvents, setVolunteerEvents] = useState<ApiEvent[]>([]);
 
   useEffect(() => {
     if (!authUser) return;
@@ -45,9 +46,17 @@ export default function StudentDashboard() {
         })
       );
       if (active) setRealRegs(results);
-    }).catch(() => {});
+    }).catch(() => { });
 
     return () => { active = false; };
+  }, [authUser]);
+
+  // Fetch volunteer events
+  useEffect(() => {
+    if (!authUser) return;
+    api.volunteers.myEvents()
+      .then((evs) => setVolunteerEvents(evs))
+      .catch(() => { });
   }, [authUser]);
 
   const activeRegs = registrations.filter((r) => r.status !== "cancelled");
@@ -131,7 +140,7 @@ export default function StudentDashboard() {
               style={{ boxShadow: "0 2px 16px var(--shadow-lg)" }}
               asChild
             >
-              <Link href="/student/events">
+              <Link href="/admin/events">
                 Browse all events
                 <Squircle
                   cornerRadius={14}
@@ -168,10 +177,74 @@ export default function StudentDashboard() {
               <p className="mt-1 text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Your event-admin tools are available from this same dashboard.</p>
             </div>
             <div className="flex gap-2">
-              <Link href="/student/events" className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--line)] bg-[hsl(0_0%_100%_/_0.5)] px-4 py-2.5 text-[0.74rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-ui)]"><ClipboardList className="w-3.5 h-3.5 text-[var(--accent)]" /> My Events</Link>
-              <Link href="/student/events/create" className="inline-flex items-center gap-2 rounded-[12px] bg-[var(--col-primary)] px-4 py-2.5 text-[0.74rem] font-medium text-[var(--bg)] font-[family-name:var(--font-ui)]"><CalendarPlus className="w-3.5 h-3.5" /> Create Event</Link>
+              <Link href="/admin/events" className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--line)] bg-[hsl(0_0%_100%_/_0.5)] px-4 py-2.5 text-[0.74rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-ui)]"><ClipboardList className="w-3.5 h-3.5 text-[var(--accent)]" /> My Events</Link>
+              <Link href="/admin/events/create" className="inline-flex items-center gap-2 rounded-[12px] bg-[var(--col-primary)] px-4 py-2.5 text-[0.74rem] font-medium text-[var(--bg)] font-[family-name:var(--font-ui)]"><CalendarPlus className="w-3.5 h-3.5" /> Create Event</Link>
             </div>
           </div>
+        </Squircle>
+      )}
+
+      {/* ── Volunteer Banner ── shown when user is assigned as a volunteer */}
+      {volunteerEvents.length > 0 && (
+        <Squircle
+          cornerRadius={24}
+          cornerSmoothing={1}
+          className="mb-6 p-5"
+          style={{
+            background: "hsl(142 50% 45% / 0.07)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            border: "1px solid hsl(142 50% 45% / 0.2)",
+          }}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div
+                className="w-9 h-9 rounded-[12px] flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: "hsl(142 50% 45% / 0.12)" }}
+              >
+                <ShieldCheck className="w-[18px] h-[18px] text-emerald-600" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-[0.62rem] uppercase tracking-[0.16em] text-emerald-600 font-[family-name:var(--font-mono)]">
+                  Volunteer Access
+                </p>
+                <h2 className="mt-0.5 text-[0.96rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
+                  You are an assigned Volunteer
+                  {volunteerEvents.length === 1
+                    ? ` for ${volunteerEvents[0].title}`
+                    : ` for ${volunteerEvents.length} events`}
+                </h2>
+                <p className="mt-1 text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                  Use the scanner to verify attendee QR passes at the entrance.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/student/volunteer"
+              className="inline-flex items-center gap-2 rounded-[12px] bg-emerald-600 px-5 py-2.5 text-[0.76rem] font-semibold text-white hover:bg-emerald-700 transition-colors flex-shrink-0 font-[family-name:var(--font-display)] shadow-sm"
+            >
+              <QrCode className="w-4 h-4" />
+              Open Scanner
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          {/* Event pills */}
+          {volunteerEvents.length > 1 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {volunteerEvents.map((ev) => (
+                <span
+                  key={ev.id}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[0.68rem] font-medium font-[family-name:var(--font-ui)] text-emerald-700"
+                  style={{ background: "hsl(142 50% 45% / 0.1)", border: "1px solid hsl(142 50% 45% / 0.2)" }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  {ev.title}
+                </span>
+              ))}
+            </div>
+          )}
         </Squircle>
       )}
 
@@ -201,7 +274,7 @@ export default function StudentDashboard() {
               style={{ background: "hsl(0 0% 100% / 0.4)", border: "1px solid hsl(0 0% 85% / 0.4)" }}
               asChild
             >
-              <Link href="/student/events">
+              <Link href="/admin/events">
                 See all
                 <Squircle cornerRadius={8} cornerSmoothing={1} className="w-[24px] h-[24px] border border-[var(--col-primary)] flex items-center justify-center flex-shrink-0">
                   <svg viewBox="0 0 24 24" className="w-[9px] h-[9px] stroke-current fill-none stroke-2 transition-transform duration-300 -rotate-45 group-hover:rotate-0" strokeLinecap="round">

@@ -37,11 +37,9 @@ const PARTICIPANT_NAV = [
 ];
 
 const EVENT_ADMIN_NAV = [
-  { label: "Dashboard", href: "/student", icon: LayoutDashboard },
-  { label: "My Events", href: "/student/events", icon: CalendarSearch },
-  { label: "Create Event", href: "/student/events/create", icon: CalendarPlus },
-  { label: "Registrations", href: "/student/registrations", icon: ClipboardList },
-  { label: "Analytics", href: "/student/analytics", icon: BarChart3 },
+  { label: "My Events", href: "/admin/events", icon: CalendarSearch },
+  { label: "Create Event", href: "/admin/events/create", icon: CalendarPlus },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];
 
 const SIDEBAR_EXPANDED = 260;
@@ -300,7 +298,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               >
                 <div className="flex items-center gap-2 px-3 mb-2">
                   <div className="flex-1 h-px" style={{ background: "hsl(25 65% 45% / 0.25)" }} />
-                  <span className="text-[0.52rem] uppercase tracking-[0.18em] text-[var(--accent)] font-[family-name:var(--font-mono)] flex-shrink-0">Event Admin</span>
+                  <span className="text-[0.52rem] uppercase tracking-[0.18em] text-[var(--accent)] font-[family-name:var(--font-mono)] flex-shrink-0">Admin Portal</span>
                   <div className="flex-1 h-px" style={{ background: "hsl(25 65% 45% / 0.25)" }} />
                 </div>
               </div>

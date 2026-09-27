@@ -23,7 +23,7 @@ export default function LandingPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const initialized = useAuthStore((s) => s.initialized);
   const isLoggedIn = initialized && !!user && !!accessToken;
-  const dashboardHref = user ? ROLE_HOME[backendRoleToUiRole(user)] : "/student";
+  const dashboardHref = "/student"; // always route to student portal; Event Admins access /admin from there
 
   return (
     <div className="min-h-screen relative overflow-x-hidden">

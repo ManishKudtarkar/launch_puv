@@ -201,7 +201,8 @@ function getProfileRoute(role?: string) {
     case "platform_admin":
       return "/platform-admin/settings";
     case "admin":
-      return "/admin/events";
+      // Event Admins enter via /student; /admin is accessed through the dashboard card
+      return "/student";
     default:
       return "/student/profile";
   }

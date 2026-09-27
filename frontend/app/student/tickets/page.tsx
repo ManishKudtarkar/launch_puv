@@ -3,9 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Squircle } from "@squircle-js/react";
-import { api, getApiErrorMessage, type Registration, type Event as ApiEvent } from "@/lib/api-client";
+import { api, getApiErrorMessage, getAccessToken, API_URL, type Registration, type Event as ApiEvent } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
-import { Ticket, MapPin, Clock, Maximize2, Lock, CheckCircle2, AlertTriangle, CalendarSearch, Calendar } from "lucide-react";
+import { Ticket, MapPin, Clock, Maximize2, Lock, CheckCircle2, AlertTriangle, CalendarSearch, Calendar, Download } from "lucide-react";
 
 type RegWithMeta = Registration & {
   event: ApiEvent;
@@ -13,41 +13,95 @@ type RegWithMeta = Registration & {
   status?: string;
 };
 
-function QRBlock({ code, size = 140 }: { code: string; size?: number }) {
-  const cells = 11;
-  const hash = code.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  const grid = Array.from({ length: cells }, (_, row) =>
-    Array.from({ length: cells }, (_, col) => {
-      const isCorner =
-        (row < 3 && col < 3) ||
-        (row < 3 && col >= cells - 3) ||
-        (row >= cells - 3 && col < 3);
-      const isPattern = (row * 7 + col * 13 + hash) % 3 === 0;
-      return isCorner || isPattern;
-    }),
-  );
-  const cellSize = size / cells;
+// ─── Real QR code component ─────────────────────────────────────────────────
+// Fetches the scannable PNG QR from the backend using the auth token.
+// Falls back to showing the token string if the fetch fails.
+function RealQR({
+  eventId,
+  ticketToken,
+  size = 140,
+}: {
+  eventId: string;
+  ticketToken: string;
+  size?: number;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    const token = getAccessToken();
+    if (!token) { setFailed(true); return; }
+
+    fetch(`${API_URL}/events/${eventId}/registrations/me/qr`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("qr fetch failed");
+        return res.blob();
+      })
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        setSrc(objectUrl);
+      })
+      .catch(() => setFailed(true));
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [eventId, ticketToken]);
+
+  if (failed) {
+    // Minimal text fallback — still shows the token
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className="flex items-center justify-center rounded-[12px] bg-white border border-slate-100 p-2 text-center"
+      >
+        <span className="text-[0.55rem] font-mono text-slate-400 break-all leading-tight">
+          {ticketToken}
+        </span>
+      </div>
+    );
+  }
+
+  if (!src) {
+    return (
+      <div
+        style={{ width: size, height: size }}
+        className="flex items-center justify-center rounded-[12px] bg-white border border-slate-100 animate-pulse"
+      >
+        <div className="w-1/2 h-1/2 rounded bg-slate-100" />
+      </div>
+    );
+  }
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ borderRadius: 10 }}>
-      <rect width={size} height={size} fill="white" rx="10" />
-      {grid.map((row, ri) =>
-        row.map((filled, ci) =>
-          filled ? (
-            <rect
-              key={`${ri}-${ci}`}
-              x={ci * cellSize}
-              y={ri * cellSize}
-              width={cellSize}
-              height={cellSize}
-              fill="#1A1A1A"
-              rx="1"
-            />
-          ) : null,
-        ),
-      )}
-    </svg>
+    <img
+      src={src}
+      alt={`QR ticket ${ticketToken}`}
+      width={size}
+      height={size}
+      style={{ borderRadius: 12, display: "block" }}
+    />
   );
+}
+
+// Helper to download the QR PNG
+function downloadQR(eventId: string, ticketToken: string) {
+  const token = getAccessToken();
+  if (!token) return;
+  fetch(`${API_URL}/events/${eventId}/registrations/me/qr`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((r) => r.blob())
+    .then((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `ticket-${ticketToken}.png`;
+      a.click();
+    })
+    .catch(() => { });
 }
 
 function getTicketStatus(item: RegWithMeta) {
@@ -329,7 +383,7 @@ export default function StudentTicketsPage() {
                       </div>
                     ) : (
                       <div className={`p-1.5 rounded-[14px] bg-white shadow-sm ${isExpired ? "opacity-30 grayscale" : ""}`}>
-                        <QRBlock code={ticketCode} size={105} />
+                        <RealQR eventId={ev.id} ticketToken={ticketCode} size={105} />
                       </div>
                     )}
 
@@ -422,14 +476,22 @@ export default function StudentTicketsPage() {
               {/* QR section */}
               <div className="px-6 pb-6 flex flex-col items-center">
                 <div className="p-4 rounded-[20px] bg-white border border-slate-100 shadow-inner mb-3">
-                  <QRBlock code={ticketCode} size={160} />
+                  <RealQR eventId={ev.id} ticketToken={ticketCode} size={200} />
                 </div>
                 <p className="text-[0.82rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tracking-[0.08em] mb-1">
                   {ticketCode}
                 </p>
-                <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)] mb-5 text-center">
+                <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)] mb-4 text-center">
                   Point this QR code at the event volunteer scanner for instant check-in.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => downloadQR(ev.id, ticketCode)}
+                  className="w-full mb-2 py-2.5 rounded-[12px] border border-[var(--line)] text-[var(--col-primary)] text-[0.78rem] font-semibold hover:bg-[hsl(0_0%_96%)] transition-all cursor-pointer font-[family-name:var(--font-display)] flex items-center justify-center gap-2"
+                >
+                  <Download className="w-3.5 h-3.5 text-[var(--accent)]" />
+                  Download QR Pass
+                </button>
                 <button
                   type="button"
                   onClick={() => setSelected(null)}

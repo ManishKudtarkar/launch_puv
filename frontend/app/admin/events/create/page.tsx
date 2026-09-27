@@ -31,6 +31,7 @@ import {
   QrCode,
   ShieldCheck,
   Users,
+  Eye,
 } from "lucide-react";
 
 const STEPS = [
@@ -162,6 +163,9 @@ export default function CreateEventPage() {
   const [saved, setSaved] = useState(false);
   const [publishError, setPublishError] = useState("");
   const [publishing, setPublishing] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftSaveSuccess, setDraftSaveSuccess] = useState("");
+  const [draftSaveError, setDraftSaveError] = useState("");
   const [savingRegistrationForm, setSavingRegistrationForm] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState("");
   const [saveErrorMessage, setSaveErrorMessage] = useState("");
@@ -203,7 +207,7 @@ export default function CreateEventPage() {
             return prev;
           });
         })
-        .catch(() => {})
+        .catch(() => { })
         .finally(() => {
           if (active) setLoadingAssignments(false);
         });
@@ -310,9 +314,129 @@ export default function CreateEventPage() {
   const handleCover = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setCover(url);
-      updateDraft("bannerUrl", url);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        setCover(dataUrl);
+        updateDraft("bannerUrl", dataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // ─── Save Changes (steps 0-4: Basic Info, Details, Agenda, Speakers, Sponsors) ───
+  const saveChanges = async () => {
+    setSavingDraft(true);
+    setDraftSaveSuccess("");
+    setDraftSaveError("");
+    try {
+      let activeEventId = currentEventId;
+
+      const eventPayload = {
+        title: draft.title.trim() || "Untitled Event Draft",
+        ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
+        // Only send bannerUrl if it's a real URL (not a data URI that's too large for the validator)
+        ...(draft.bannerUrl && draft.bannerUrl.startsWith("http") ? { bannerUrl: draft.bannerUrl } : {}),
+        eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
+        ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
+        ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+        ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
+        ...(draft.communityId ? { communityId: draft.communityId } : {}),
+        ...(draft.clubId ? { clubId: draft.clubId } : {}),
+      };
+
+      if (activeEventId) {
+        await api.events.update(activeEventId, eventPayload);
+      } else {
+        const created = await api.events.create(eventPayload);
+        activeEventId = created.id;
+        setCurrentEventId(created.id);
+        window.history.replaceState(null, "", `${window.location.pathname}?event=${created.id}`);
+      }
+
+      // Save agenda items
+      if (activeEventId && draft.agenda.length > 0) {
+        for (const item of draft.agenda) {
+          const agendaPayload = {
+            title: item.title || "Session",
+            description: item.description,
+            startTime: new Date(item.startTime).toISOString(),
+            endTime: item.endTime ? new Date(item.endTime).toISOString() : undefined,
+            displayOrder: item.displayOrder,
+          };
+          if (item.id) {
+            await api.events.agenda.update(activeEventId, item.id, agendaPayload).catch(() => { });
+          } else {
+            const saved = await api.events.agenda.create(activeEventId, agendaPayload);
+            // update local id so re-saves don't duplicate
+            setDraft((prev) => ({
+              ...prev,
+              agenda: prev.agenda.map((a, i) =>
+                a === item ? { ...a, id: saved.id } : a
+              ),
+            }));
+          }
+        }
+      }
+
+      // Save speakers
+      if (activeEventId && draft.speakers.length > 0) {
+        for (const speaker of draft.speakers) {
+          const speakerPayload = {
+            name: speaker.name || "Speaker",
+            designation: speaker.designation,
+            organization: speaker.organization,
+            bio: speaker.bio,
+            photoUrl: speaker.photoUrl,
+            linkedinUrl: speaker.linkedinUrl,
+            displayOrder: speaker.displayOrder ?? 1,
+          };
+          if (speaker.id) {
+            await api.events.speakers.update(activeEventId, speaker.id, speakerPayload).catch(() => { });
+          } else {
+            const saved = await api.events.speakers.create(activeEventId, speakerPayload);
+            setDraft((prev) => ({
+              ...prev,
+              speakers: prev.speakers.map((s) =>
+                s === speaker ? { ...s, id: saved.id } : s
+              ),
+            }));
+          }
+        }
+      }
+
+      // Save sponsors
+      if (activeEventId && draft.sponsors.length > 0) {
+        for (const sponsor of draft.sponsors) {
+          const sponsorPayload = {
+            name: sponsor.name || "Sponsor",
+            logoUrl: sponsor.logoUrl,
+            description: sponsor.description,
+            websiteUrl: sponsor.websiteUrl,
+            sponsorshipLevel: sponsor.sponsorshipLevel,
+            displayOrder: sponsor.displayOrder ?? 1,
+          };
+          if (sponsor.id) {
+            await api.events.sponsors.update(activeEventId, sponsor.id, sponsorPayload).catch(() => { });
+          } else {
+            const saved = await api.events.sponsors.create(activeEventId, sponsorPayload);
+            setDraft((prev) => ({
+              ...prev,
+              sponsors: prev.sponsors.map((s) =>
+                s === sponsor ? { ...s, id: saved.id } : s
+              ),
+            }));
+          }
+        }
+      }
+
+      setDraftSaveSuccess("Changes saved successfully!");
+      setTimeout(() => setDraftSaveSuccess(""), 4000);
+    } catch (error) {
+      setDraftSaveError(getApiErrorMessage(error));
+      setTimeout(() => setDraftSaveError(""), 5000);
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -455,6 +579,54 @@ export default function CreateEventPage() {
           await api.events.registrationForm.create(activeEventId, { selectedFields });
         }
 
+        // Save agenda items that don't have an id yet
+        for (const item of draft.agenda) {
+          if (!item.id && item.title) {
+            try {
+              await api.events.agenda.create(activeEventId, {
+                title: item.title,
+                description: item.description,
+                startTime: new Date(item.startTime).toISOString(),
+                endTime: item.endTime ? new Date(item.endTime).toISOString() : undefined,
+                displayOrder: item.displayOrder,
+              });
+            } catch { /* non-blocking */ }
+          }
+        }
+
+        // Save speakers that don't have an id yet
+        for (const speaker of draft.speakers) {
+          if (!speaker.id && speaker.name) {
+            try {
+              await api.events.speakers.create(activeEventId, {
+                name: speaker.name,
+                designation: speaker.designation,
+                organization: speaker.organization,
+                bio: speaker.bio,
+                photoUrl: speaker.photoUrl,
+                linkedinUrl: speaker.linkedinUrl,
+                displayOrder: speaker.displayOrder ?? 1,
+              });
+            } catch { /* non-blocking */ }
+          }
+        }
+
+        // Save sponsors that don't have an id yet
+        for (const sponsor of draft.sponsors) {
+          if (!sponsor.id && sponsor.name) {
+            try {
+              await api.events.sponsors.create(activeEventId, {
+                name: sponsor.name,
+                logoUrl: sponsor.logoUrl,
+                description: sponsor.description,
+                websiteUrl: sponsor.websiteUrl,
+                sponsorshipLevel: sponsor.sponsorshipLevel,
+                displayOrder: sponsor.displayOrder ?? 1,
+              });
+            } catch { /* non-blocking */ }
+          }
+        }
+
         // Submit for approval
         try {
           await api.events.submit(activeEventId);
@@ -464,6 +636,8 @@ export default function CreateEventPage() {
       }
 
       setSaved(true);
+      // Redirect to admin events so the new status is visible
+      setTimeout(() => router.push("/admin/events"), 1500);
     } catch (error) {
       setPublishError(getApiErrorMessage(error));
     } finally {
@@ -495,7 +669,7 @@ export default function CreateEventPage() {
       <div className="flex items-start justify-between gap-4 mb-7">
         <div>
           <Link
-            href="/student/events"
+            href="/admin/events"
             className="inline-flex items-center gap-2 text-[0.78rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)] transition-colors mb-3 font-[family-name:var(--font-ui)]"
           >
             <ArrowLeft className="w-3.5 h-3.5" /> Back to events
@@ -533,13 +707,12 @@ export default function CreateEventPage() {
                 >
                   <div className={`flex items-center gap-2 mb-2 ${active ? "text-[var(--col-primary)]" : "text-[var(--col-dim)]"}`}>
                     <span
-                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.62rem] font-semibold font-[family-name:var(--font-mono)] transition-all ${
-                        active
-                          ? "bg-[var(--col-primary)] text-[var(--bg)] shadow-sm"
-                          : complete
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-[0.62rem] font-semibold font-[family-name:var(--font-mono)] transition-all ${active
+                        ? "bg-[var(--col-primary)] text-[var(--bg)] shadow-sm"
+                        : complete
                           ? "bg-[var(--accent)] text-white"
                           : "border border-[var(--line)]"
-                      }`}
+                        }`}
                     >
                       {complete ? <Check className="w-3.5 h-3.5" /> : index + 1}
                     </span>
@@ -548,9 +721,8 @@ export default function CreateEventPage() {
                     </span>
                   </div>
                   <div
-                    className={`h-1 rounded-full transition-colors ${
-                      active ? "bg-[var(--accent)]" : complete ? "bg-[var(--accent)]/50" : "bg-[var(--line-soft)]"
-                    }`}
+                    className={`h-1 rounded-full transition-colors ${active ? "bg-[var(--accent)]" : complete ? "bg-[var(--accent)]/50" : "bg-[var(--line-soft)]"
+                      }`}
                   />
                   <p className="mt-1 text-[0.58rem] text-[var(--col-dim)] whitespace-nowrap font-[family-name:var(--font-mono)]">
                     {item.caption}
@@ -663,8 +835,45 @@ export default function CreateEventPage() {
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <span className="hidden sm:inline text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
             Step {step + 1} of {STEPS.length} · {STEPS[step]?.label}
+            {draftSaveSuccess && step <= 4 && (
+              <span className="ml-3 text-emerald-600 font-semibold">
+                ✓ Changes saved — you can proceed to the next step
+              </span>
+            )}
           </span>
           <div className="flex items-center gap-2 ml-auto">
+            {/* Save Changes button for steps 0–4 (Basic Info, Details, Agenda, Speakers, Sponsors) */}
+            {step <= 4 && (
+              <button
+                type="button"
+                onClick={saveChanges}
+                disabled={savingDraft}
+                className={`px-4 py-2.5 text-[0.74rem] font-medium rounded-[12px] hover:opacity-90 transition-all font-[family-name:var(--font-ui)] flex items-center gap-1.5 disabled:opacity-50 cursor-pointer ${draftSaveSuccess
+                  ? "bg-emerald-500 text-white"
+                  : "bg-[var(--accent)] text-white"
+                  }`}
+              >
+                {savingDraft ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                    Saving...
+                  </>
+                ) : draftSaveSuccess ? (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Saved ✓
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            )}
             {step === 5 && (
               <button
                 type="button"
@@ -723,6 +932,17 @@ export default function CreateEventPage() {
           {publishError}
         </div>
       )}
+      {draftSaveSuccess && (
+        <div className="fixed bottom-20 left-5 z-40 max-w-sm px-4 py-3 rounded-[12px] bg-[hsl(142_50%_45%_/_0.12)] border border-[hsl(142_50%_45%_/_0.3)] text-[hsl(142_60%_30%)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+          {draftSaveSuccess}
+        </div>
+      )}
+      {draftSaveError && (
+        <div className="fixed bottom-20 left-5 z-40 max-w-sm px-4 py-3 rounded-[12px] bg-[var(--danger-bg)] text-[var(--danger)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl border border-[var(--danger)]/20">
+          {draftSaveError}
+        </div>
+      )}
       {saved && (
         <div className="fixed bottom-20 right-5 z-40 px-5 py-3.5 rounded-[14px] bg-[var(--col-primary)] text-[var(--bg)] text-[0.76rem] font-[family-name:var(--font-ui)] shadow-2xl flex items-center gap-3">
           <span>Event saved and submitted successfully!</span>
@@ -730,7 +950,7 @@ export default function CreateEventPage() {
             type="button"
             onClick={() => {
               setSaved(false);
-              router.push("/student/events");
+              router.push("/admin/events");
             }}
             className="text-[var(--accent-light)] font-bold hover:underline cursor-pointer"
           >
@@ -766,8 +986,8 @@ function BasicInfo({
   const selectedOrgValue = draft.communityId
     ? `community:${draft.communityId}`
     : draft.clubId
-    ? `club:${draft.clubId}`
-    : "";
+      ? `club:${draft.clubId}`
+      : "";
 
   const handleOrgChange = (val: string) => {
     if (!val) {
@@ -1233,32 +1453,6 @@ function RegistrationFormBuilder({
         description="Design the registration form attendees will fill out to register for this event on the public page."
       />
 
-      {/* Save action bar at the top as well for easy access */}
-      <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.55)]">
-        <div>
-          <p className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
-            Active Registration Form ({draft.registrationFields.length} fields)
-          </p>
-          <p className="text-[0.68rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-            Add custom fields from the catalog, configure optional/required, and save your form.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onSaveRegistrationForm}
-          disabled={savingRegistrationForm}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-[12px] bg-[var(--accent)] text-white text-[0.76rem] font-medium font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0 shadow-sm cursor-pointer"
-        >
-          {savingRegistrationForm ? (
-            "Saving Registration Form..."
-          ) : (
-            <>
-              <Check className="w-3.5 h-3.5" /> Save Registration Form
-            </>
-          )}
-        </button>
-      </div>
-
       {saveSuccessMessage && (
         <div className="mt-3 p-3.5 rounded-[12px] bg-[hsl(142_50%_45%_/_0.12)] border border-[hsl(142_50%_45%_/_0.3)] text-[hsl(142_60%_30%)] text-[0.76rem] font-medium flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-[hsl(142_60%_40%)]" />
@@ -1301,11 +1495,10 @@ function RegistrationFormBuilder({
               return (
                 <div
                   key={field.key}
-                  className={`rounded-[14px] border p-3 transition-all ${
-                    isAdded
-                      ? "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] opacity-60"
-                      : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.7)] hover:border-[var(--accent)]"
-                  }`}
+                  className={`rounded-[14px] border p-3 transition-all ${isAdded
+                    ? "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] opacity-60"
+                    : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.7)] hover:border-[var(--accent)]"
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 flex-1">
@@ -1320,11 +1513,10 @@ function RegistrationFormBuilder({
                       type="button"
                       disabled={isAdded}
                       onClick={() => addField(field)}
-                      className={`inline-flex h-7 w-7 items-center justify-center rounded-[8px] border transition-all cursor-pointer ${
-                        isAdded
-                          ? "border-[var(--line-soft)] text-[var(--col-dim)] cursor-not-allowed"
-                          : "border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
-                      }`}
+                      className={`inline-flex h-7 w-7 items-center justify-center rounded-[8px] border transition-all cursor-pointer ${isAdded
+                        ? "border-[var(--line-soft)] text-[var(--col-dim)] cursor-not-allowed"
+                        : "border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white"
+                        }`}
                       title={isAdded ? "Already in form" : "Add to registration form"}
                     >
                       {isAdded ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -1382,11 +1574,10 @@ function RegistrationFormBuilder({
                         <button
                           type="button"
                           onClick={() => toggleRequired(field.key)}
-                          className={`rounded px-1.5 py-0.5 text-[0.52rem] font-bold transition-colors font-[family-name:var(--font-mono)] cursor-pointer ${
-                            field.required
-                              ? "bg-[var(--accent)] text-white"
-                              : "bg-[hsl(0_0%_90%)] text-[var(--col-dim)] hover:bg-[hsl(0_0%_80%)]"
-                          }`}
+                          className={`rounded px-1.5 py-0.5 text-[0.52rem] font-bold transition-colors font-[family-name:var(--font-mono)] cursor-pointer ${field.required
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[hsl(0_0%_90%)] text-[var(--col-dim)] hover:bg-[hsl(0_0%_80%)]"
+                            }`}
                         >
                           {field.required ? "REQUIRED" : "OPTIONAL"}
                         </button>
@@ -1412,26 +1603,6 @@ function RegistrationFormBuilder({
             ))}
           </div>
 
-          {/* Bottom Save Registration Form Bar */}
-          <div className="mt-6 pt-4 border-t border-[var(--line-soft)] flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-              Be sure to save the form so student attendees see these fields.
-            </span>
-            <button
-              type="button"
-              onClick={onSaveRegistrationForm}
-              disabled={savingRegistrationForm}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-[12px] bg-[var(--accent)] text-white text-[0.76rem] font-medium font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
-            >
-              {savingRegistrationForm ? (
-                "Saving..."
-              ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" /> Save Registration Form
-                </>
-              )}
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -1529,26 +1700,6 @@ function TicketsAndVolunteersStep({
         description="Configure automated ticket QR generation timing, scanner field visibility, and assign student volunteers to scan attendee passes."
       />
 
-      {/* Save Button Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.55)]">
-        <div>
-          <p className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
-            Ticket & Attendance Configuration
-          </p>
-          <p className="text-[0.68rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-            Settings apply automatically to student registration tickets and volunteer scanner screens.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={saveTicketSettings}
-          disabled={savingTicketSettings}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-[12px] bg-[var(--accent)] text-white text-[0.76rem] font-medium font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0 shadow-sm cursor-pointer"
-        >
-          {savingTicketSettings ? "Saving Settings..." : "Save Ticket & Volunteer Settings"}
-        </button>
-      </div>
-
       {ticketSaveSuccess && (
         <div className="p-3.5 rounded-[12px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 text-[0.76rem] font-medium flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -1597,11 +1748,10 @@ function TicketsAndVolunteersStep({
               ].map((opt) => (
                 <label
                   key={opt.mode}
-                  className={`flex items-start gap-3 p-3.5 rounded-[14px] border cursor-pointer transition-all ${
-                    draft.ticketReleaseMode === opt.mode
-                      ? "border-[var(--accent)] bg-[var(--accent)]/5 shadow-sm"
-                      : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.6)] hover:border-[var(--accent)]/50"
-                  }`}
+                  className={`flex items-start gap-3 p-3.5 rounded-[14px] border cursor-pointer transition-all ${draft.ticketReleaseMode === opt.mode
+                    ? "border-[var(--accent)] bg-[var(--accent)]/5 shadow-sm"
+                    : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.6)] hover:border-[var(--accent)]/50"
+                    }`}
                 >
                   <input
                     type="radio"
@@ -1673,11 +1823,10 @@ function TicketsAndVolunteersStep({
                 return (
                   <label
                     key={field.key}
-                    className={`flex items-center gap-2.5 p-2.5 rounded-[10px] border cursor-pointer text-[0.76rem] font-medium transition-all ${
-                      isChecked
-                        ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--col-primary)]"
-                        : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.6)] text-[var(--col-secondary)]"
-                    }`}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-[10px] border cursor-pointer text-[0.76rem] font-medium transition-all ${isChecked
+                      ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--col-primary)]"
+                      : "border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.6)] text-[var(--col-secondary)]"
+                      }`}
                   >
                     <input
                       type="checkbox"
@@ -1913,9 +2062,8 @@ function Preview({ draft, cover }: { draft: EventDraft; cover: string | null }) 
                 <span className="text-[0.66rem] font-bold text-[var(--accent)] font-[family-name:var(--font-mono)]">#{i + 1}</span>
                 <span className="text-[0.76rem] font-medium text-[var(--col-primary)]">{field.label}</span>
               </div>
-              <span className={`text-[0.56rem] font-bold px-2 py-0.5 rounded font-[family-name:var(--font-mono)] ${
-                field.systemMandatory || field.required ? "bg-[var(--accent)]/15 text-[var(--accent)]" : "bg-[hsl(0_0%_90%)] text-[var(--col-dim)]"
-              }`}>
+              <span className={`text-[0.56rem] font-bold px-2 py-0.5 rounded font-[family-name:var(--font-mono)] ${field.systemMandatory || field.required ? "bg-[var(--accent)]/15 text-[var(--accent)]" : "bg-[hsl(0_0%_90%)] text-[var(--col-dim)]"
+                }`}>
                 {field.systemMandatory ? "SYSTEM" : field.required ? "REQUIRED" : "OPTIONAL"}
               </span>
             </div>
@@ -1937,68 +2085,233 @@ function PublishReview({
   onPublish: () => void;
   publishing: boolean;
 }) {
+  const [showPreview, setShowPreview] = useState(false);
+
   return (
-    <div className="space-y-6">
-      <StepIntro number="08" title="Review & Submit for Approval" description="Verify all event details and registration configuration before publishing." />
+    <>
+      {/* ── Inline Webpage Preview Modal ────────────────────────────────────── */}
+      {showPreview && (
+        <div className="fixed inset-0 z-[500] flex flex-col bg-[var(--bg)]">
+          {/* Preview top bar */}
+          <div
+            className="flex items-center justify-between px-5 py-3 border-b border-[var(--line-soft)] flex-shrink-0"
+            style={{
+              background: "hsl(0 0% 96% / 0.95)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+              <span className="text-[0.74rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
+                Webpage Preview
+              </span>
+              <span className="text-[0.62rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] hidden sm:inline">
+                This is how attendees will see the event
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowPreview(false)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[10px] border border-[var(--line)] text-[0.74rem] font-medium text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:bg-[hsl(0_0%_96%)] transition-all cursor-pointer font-[family-name:var(--font-ui)]"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Back to Review
+            </button>
+          </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+          {/* Scrollable preview content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[1100px] px-4 py-8 md:px-8">
+              {/* Banner */}
+              {(cover || draft.bannerUrl) ? (
+                <div className="relative rounded-[24px] overflow-hidden mb-8 border border-[var(--line-soft)] shadow-md aspect-[21/9] max-h-[340px] w-full bg-slate-900">
+                  <img src={cover || draft.bannerUrl} alt={draft.title} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <Squircle cornerRadius={24} cornerSmoothing={1} className="w-full min-h-[180px] mb-8 flex items-center justify-center"
+                  style={{ background: "linear-gradient(135deg, #182238 0%, #0d131f 100%)" }}>
+                  <span className="text-[0.8rem] uppercase tracking-[0.18em] text-white/40 font-[family-name:var(--font-mono)]">No Banner</span>
+                </Squircle>
+              )}
+
+              {/* Title + meta */}
+              <h1 className="text-[clamp(1.7rem,3.5vw,2.5rem)] font-extrabold leading-[1.15] tracking-[-0.03em] text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-3">
+                {draft.title || "Untitled Event"}
+              </h1>
+
+              {/* Info chips */}
+              <div className="flex flex-wrap gap-4 mb-6 text-[0.8rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-[var(--accent)]" />{draft.eventDate}</span>
+                {draft.startTime && <span className="inline-flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-[var(--accent)]" />{draft.startTime.split("T")[1] || "09:00"}{draft.endTime ? ` — ${draft.endTime.split("T")[1]}` : ""}</span>}
+                {draft.venue && <span className="inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-[var(--accent)]" />{draft.venue}</span>}
+              </div>
+
+              <div className="grid gap-6 lg:grid-cols-[1fr_320px] items-start">
+                <div className="space-y-6">
+                  {/* About */}
+                  <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                    <h2 className="text-[1.1rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-3">About the Event</h2>
+                    <p className="text-[0.86rem] text-slate-600 leading-[1.8] font-[family-name:var(--font-ui)] whitespace-pre-line">
+                      {draft.description || "No description provided."}
+                    </p>
+                  </Squircle>
+
+                  {/* Agenda */}
+                  {draft.agenda.length > 0 && (
+                    <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                      <h2 className="text-[1.1rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-4">Schedule</h2>
+                      <div className="space-y-4">
+                        {draft.agenda.map((item, i) => (
+                          <div key={i} className="flex items-start gap-4 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0">
+                            <div className="w-10 text-center flex-shrink-0">
+                              <span className="text-[0.58rem] font-bold uppercase text-[#CC5F1C] font-[family-name:var(--font-mono)]">DAY</span>
+                              <span className="block text-[1.1rem] font-bold text-slate-800 font-[family-name:var(--font-display)]">{i + 1}</span>
+                            </div>
+                            <div className="min-w-0 flex-1 pt-0.5 border-l border-slate-100 pl-4">
+                              <p className="text-[0.88rem] font-bold text-slate-900 font-[family-name:var(--font-display)]">{item.title}</p>
+                              {item.description && <p className="text-[0.76rem] text-slate-500 mt-1 font-[family-name:var(--font-ui)]">{item.description}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Squircle>
+                  )}
+
+                  {/* Speakers */}
+                  {draft.speakers.length > 0 && (
+                    <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                      <h2 className="text-[1.1rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-4">Speakers & Guests</h2>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {draft.speakers.map((s, i) => (
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-[14px] bg-white border border-slate-100">
+                            {s.photoUrl
+                              ? <img src={s.photoUrl} alt={s.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                              : <div className="w-10 h-10 rounded-full bg-slate-700 text-white text-[0.68rem] font-bold flex items-center justify-center flex-shrink-0">{(s.name || "SP").slice(0,2).toUpperCase()}</div>
+                            }
+                            <div className="min-w-0">
+                              <p className="text-[0.82rem] font-semibold text-slate-900 font-[family-name:var(--font-display)] truncate">{s.name}</p>
+                              {s.designation && <p className="text-[0.68rem] text-slate-500 truncate font-[family-name:var(--font-ui)]">{s.designation}{s.organization ? ` · ${s.organization}` : ""}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Squircle>
+                  )}
+
+                  {/* Sponsors */}
+                  {draft.sponsors.length > 0 && (
+                    <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                      <h2 className="text-[1.1rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-4">Sponsors & Partners</h2>
+                      <div className="flex flex-wrap gap-3">
+                        {draft.sponsors.map((s, i) => (
+                          <div key={i} className="flex items-center gap-2.5 px-4 py-2.5 rounded-[12px] bg-white border border-slate-100 shadow-sm">
+                            {s.logoUrl && <img src={s.logoUrl} alt={s.name} className="w-6 h-6 object-contain rounded" />}
+                            <div>
+                              <p className="text-[0.74rem] font-semibold text-slate-900 font-[family-name:var(--font-display)]">{s.name}</p>
+                              {s.sponsorshipLevel && <p className="text-[0.58rem] text-[var(--accent)] font-[family-name:var(--font-mono)]">{s.sponsorshipLevel}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Squircle>
+                  )}
+                </div>
+
+                {/* Registration sidebar */}
+                <div>
+                  <Squircle cornerRadius={24} cornerSmoothing={1} className="p-6 shadow-xl text-white"
+                    style={{ background: "linear-gradient(145deg, #CC5F1C 0%, #A84E16 100%)" }}>
+                    <p className="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-white/75 font-[family-name:var(--font-mono)] mb-4">Register for this event</p>
+                    <div className="space-y-3 mb-6">
+                      <div className="flex items-center gap-3"><Calendar className="w-4 h-4 text-white/70 flex-shrink-0" /><span className="text-[0.86rem] font-bold text-white">{draft.eventDate}</span></div>
+                      {draft.venue && <div className="flex items-center gap-3"><MapPin className="w-4 h-4 text-white/70 flex-shrink-0" /><span className="text-[0.86rem] font-bold text-white truncate">{draft.venue}</span></div>}
+                    </div>
+                    <div className="w-full py-3 rounded-[12px] bg-white text-[#CC5F1C] text-[0.82rem] font-bold text-center font-[family-name:var(--font-display)]">
+                      Register Now (Preview)
+                    </div>
+                    <p className="text-[0.62rem] text-white/50 text-center mt-3 font-[family-name:var(--font-ui)]">Form has {draft.registrationFields.length} fields</p>
+                  </Squircle>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-6">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <StepIntro number="08" title="Review & Submit for Approval" description="Verify all event details and registration configuration before publishing." />
+          {/* Preview Webpage button — top-left of review card */}
+          <button
+            type="button"
+            onClick={() => setShowPreview(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[12px] border border-[var(--line)] bg-[hsl(0_0%_100%_/_0.6)] text-[0.74rem] font-medium text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:border-[var(--accent)] transition-all flex-shrink-0 cursor-pointer font-[family-name:var(--font-ui)]"
+          >
+            <Eye className="w-3.5 h-3.5 text-[var(--accent)]" />
+            Preview Webpage
+          </button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)]">
+            <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-1">Event Title</p>
+            <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)]">{draft.title || "Untitled"}</p>
+          </div>
+          <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)]">
+            <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-1">Date & Location</p>
+            <p className="text-[0.82rem] font-medium text-[var(--col-primary)]">{draft.eventDate} · {draft.venue || "No venue"}</p>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)] space-y-3">
+          <h4 className="text-[0.74rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+            Configuration Overview
+          </h4>
+          <div className="grid gap-2 sm:grid-cols-4 text-[0.76rem]">
+            <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
+              <span className="text-[var(--col-dim)] block text-[0.62rem]">AGENDA</span>
+              <span className="font-bold text-[var(--col-primary)]">{draft.agenda.length} items</span>
+            </div>
+            <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
+              <span className="text-[var(--col-dim)] block text-[0.62rem]">SPEAKERS</span>
+              <span className="font-bold text-[var(--col-primary)]">{draft.speakers.length} speakers</span>
+            </div>
+            <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
+              <span className="text-[var(--col-dim)] block text-[0.62rem]">SPONSORS</span>
+              <span className="font-bold text-[var(--col-primary)]">{draft.sponsors.length} sponsors</span>
+            </div>
+            <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
+              <span className="text-[var(--col-dim)] block text-[0.62rem]">FORM FIELDS</span>
+              <span className="font-bold text-[var(--accent)]">{draft.registrationFields.length} active fields</span>
+            </div>
+          </div>
+        </div>
+
         <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)]">
-          <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-1">Event Title</p>
-          <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)]">{draft.title || "Untitled"}</p>
+          <h4 className="text-[0.74rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-3">
+            Fields that will be shown to registering students
+          </h4>
+          <div className="flex flex-wrap gap-2">
+            {draft.registrationFields.map((f) => (
+              <span key={f.key} className="px-2.5 py-1 rounded-full text-[0.68rem] bg-[hsl(0_0%_100%_/_0.8)] border border-[var(--line-soft)] text-[var(--col-primary)] font-medium">
+                {f.label} {f.systemMandatory ? "(System)" : f.required ? "(Req)" : "(Opt)"}
+              </span>
+            ))}
+          </div>
         </div>
-        <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)]">
-          <p className="text-[0.62rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-1">Date & Location</p>
-          <p className="text-[0.82rem] font-medium text-[var(--col-primary)]">{draft.eventDate} · {draft.venue || "No venue"}</p>
-        </div>
-      </div>
 
-      <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)] space-y-3">
-        <h4 className="text-[0.74rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
-          Configuration Overview
-        </h4>
-        <div className="grid gap-2 sm:grid-cols-4 text-[0.76rem]">
-          <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
-            <span className="text-[var(--col-dim)] block text-[0.62rem]">AGENDA</span>
-            <span className="font-bold text-[var(--col-primary)]">{draft.agenda.length} items</span>
-          </div>
-          <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
-            <span className="text-[var(--col-dim)] block text-[0.62rem]">SPEAKERS</span>
-            <span className="font-bold text-[var(--col-primary)]">{draft.speakers.length} speakers</span>
-          </div>
-          <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
-            <span className="text-[var(--col-dim)] block text-[0.62rem]">SPONSORS</span>
-            <span className="font-bold text-[var(--col-primary)]">{draft.sponsors.length} sponsors</span>
-          </div>
-          <div className="p-3 rounded-[10px] bg-[hsl(0_0%_100%_/_0.6)]">
-            <span className="text-[var(--col-dim)] block text-[0.62rem]">FORM FIELDS</span>
-            <span className="font-bold text-[var(--accent)]">{draft.registrationFields.length} active fields</span>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={onPublish}
+          disabled={publishing}
+          className="w-full py-3.5 rounded-[14px] bg-[var(--accent)] text-white text-[0.84rem] font-semibold font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+        >
+          {publishing ? "Submitting Event..." : "Submit Event For Approval"}
+          <Check className="w-4 h-4" />
+        </button>
       </div>
-
-      <div className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.5)]">
-        <h4 className="text-[0.74rem] uppercase tracking-[0.14em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-3">
-          Fields that will be shown to registering students
-        </h4>
-        <div className="flex flex-wrap gap-2">
-          {draft.registrationFields.map((f) => (
-            <span key={f.key} className="px-2.5 py-1 rounded-full text-[0.68rem] bg-[hsl(0_0%_100%_/_0.8)] border border-[var(--line-soft)] text-[var(--col-primary)] font-medium">
-              {f.label} {f.systemMandatory ? "(System)" : f.required ? "(Req)" : "(Opt)"}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={onPublish}
-        disabled={publishing}
-        className="w-full py-3.5 rounded-[14px] bg-[var(--accent)] text-white text-[0.84rem] font-semibold font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer"
-      >
-        {publishing ? "Submitting Event..." : "Submit Event For Approval"}
-        <Check className="w-4 h-4" />
-      </button>
-    </div>
+    </>
   );
 }
 

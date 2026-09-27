@@ -29,7 +29,7 @@ export type RegisterRequest = { fullName: string; email: string; password: strin
 export type CreateUserRequest = { fullName: string; email: string; password: string; role: BackendRole; userType: UserType };
 export type LoginRequest = { email: string; password: string };
 export type EventStatus = "DRAFT" | "PENDING_APPROVAL" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED" | "PUBLISHED" | "COMPLETED";
-export type Event = { id: string; title: string; slug?: string; description?: string; bannerUrl?: string; eventDate: string; startTime?: string; endTime?: string; venue?: string; status?: EventStatus; category?: string; organizer?: string; capacity?: number; registered?: number; communityId?: string; clubId?: string; community?: { id: string; name: string; slug: string }; club?: { id: string; name: string; slug: string }; [key: string]: unknown };
+export type Event = { id: string; title: string; slug?: string; description?: string; bannerUrl?: string; eventDate: string; startTime?: string; endTime?: string; venue?: string; status?: EventStatus; category?: string; organizer?: string; capacity?: number; registered?: number; communityId?: string; clubId?: string; community?: { id: string; name: string; slug: string }; club?: { id: string; name: string; slug: string };[key: string]: unknown };
 export type CreateEventRequest = {
   title: string;
   description?: string;
@@ -55,7 +55,7 @@ export type SponsorRequest = Omit<Sponsor, "id">;
 export type ReorderRequest = { items: { id: string; displayOrder: number }[] };
 export type RegistrationField = { key: string; label: string; category: string; inputType: string; systemMandatory: boolean; options?: string[]; required?: boolean };
 export type RegistrationFormRequest = { selectedFields: { key: string; required: boolean }[] };
-export type Registration = { id: string; eventId: string; ticketToken?: string; checkedInAt?: string; checkedInById?: string; checkedInByName?: string; scanCount?: number; scanHistory?: Array<{ volunteerId: string; volunteerName: string; scannedAt: string; scanNumber?: number }>; registrationData: Record<string, string>; [key: string]: unknown };
+export type Registration = { id: string; eventId: string; ticketToken?: string; checkedInAt?: string; checkedInById?: string; checkedInByName?: string; scanCount?: number; scanHistory?: Array<{ volunteerId: string; volunteerName: string; scannedAt: string; scanNumber?: number }>; registrationData: Record<string, string>;[key: string]: unknown };
 export type Volunteer = {
   id: string;
   eventId: string;
@@ -293,6 +293,7 @@ export const api = {
     registrations: {
       register: (eventId: string, registrationData: Record<string, string>) => request<Registration>({ method: "POST", url: `/events/${eventId}/registrations`, data: { registrationData } }),
       me: (eventId: string) => request<Registration>({ method: "GET", url: `/events/${eventId}/registrations/me` }),
+      qr: (eventId: string) => `${API_URL}/events/${eventId}/registrations/me/qr`,
       count: (eventId: string) => request<{ eventId: string; totalRegistrations: number }>({ method: "GET", url: `/events/${eventId}/registrations/count` }),
       list: (eventId: string) => request<Registration[]>({ method: "GET", url: `/events/${eventId}/registrations` }),
       get: (eventId: string, registrationId: string) => request<Registration>({ method: "GET", url: `/events/${eventId}/registrations/${registrationId}` }),

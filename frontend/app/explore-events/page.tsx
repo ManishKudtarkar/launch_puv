@@ -59,7 +59,7 @@ export default function ExploreEventsPage() {
 
   const isLoggedIn = initialized && !!user && !!accessToken;
   const uiRole = user ? backendRoleToUiRole(user) : "student";
-  const dashboardHref = ROLE_HOME[uiRole] || "/student";
+  const dashboardHref = "/student"; // always route to student portal; Event Admins access /admin from there
   const roleLabel =
     uiRole === "super_admin"
       ? "Super Admin"
