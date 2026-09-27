@@ -1,0 +1,483 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String     @id @default(uuid())
+  fullName           String
+  email              String     @unique
+  passwordHash       String
+  role               Role       @default(PARTICIPANT)
+  userType           UserType
+  status             UserStatus @default(ACTIVE)
+  mustChangePassword Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  events              Event[]
+  registrations       StudentRegistration[]
+  eventApprovals      EventApproval[]       @relation("EventApprovalAdmin")
+  sessions            UserSession[]
+  passwordResetTokens PasswordResetToken[]
+  memberships         Membership[]
+  follows             Follow[]
+  updates             EntityUpdate[]
+  notifications       Notification[]
+  headedCommunities   Community[]           @relation("CommunityHead")
+  headedClubs         Club[]                @relation("ClubHead")
+  assignedVolunteers  EventVolunteer[]      @relation("AssignedVolunteers")
+  volunteerRoles      EventVolunteer[]      @relation("UserVolunteerRoles")
+  checkedInAttendees  StudentRegistration[] @relation("CheckedInRegistrations")
+}
+
+model Event {
+  id String @id @default(uuid())
+
+  title       String
+  slug        String  @unique
+  description String?
+  bannerUrl   String?
+
+  eventDate DateTime
+  startTime DateTime?
+  endTime   DateTime?
+
+  venue String?
+
+  status EventStatus @default(DRAFT)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+
+  ticketReleaseMode       String    @default("IMMEDIATE")
+  ticketReleaseHours      Int       @default(0)
+  ticketReleaseCustomDate DateTime?
+  scannedFieldsConfig     Json?
+
+  agendaItems       EventAgenda[]
+  speakers          EventSpeaker[]
+  sponsors          EventSponsor[]
+  registrationForms EventRegistrationForm[]
+  registrations     StudentRegistration[]
+  approvals         EventApproval[]
+  volunteers        EventVolunteer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([communityId])
+  @@index([clubId])
+  @@index([status])
+  @@index([eventDate])
+}
+
+model EventAgenda {
+  id           String    @id @default(uuid())
+  eventId      String
+  title        String
+  description  String?
+  startTime    DateTime
+  endTime      DateTime?
+  displayOrder Int
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([eventId, displayOrder])
+}
+
+model EventSpeaker {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name         String
+  designation  String?
+  organization String?
+  bio          String?
+  photoUrl     String?
+  linkedinUrl  String?
+
+  displayOrder Int @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([displayOrder])
+}
+
+model EventSponsor {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  name             String
+  logoUrl          String?
+  description      String?
+  websiteUrl       String?
+  sponsorshipLevel String?
+  displayOrder     Int     @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([displayOrder])
+}
+
+model EventRegistrationForm {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  version Int
+
+  mandatoryFields Json
+  selectedFields  Json
+
+  status RegistrationFormStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, version])
+  @@index([eventId])
+  @@index([status])
+}
+
+model StudentRegistration {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  formVersion Int
+
+  registrationData Json
+
+  status RegistrationStatus @default(ACTIVE)
+
+  ticketToken   String?   @unique
+  checkedInAt   DateTime?
+  checkedInById String?
+  checkedInBy   User?     @relation("CheckedInRegistrations", fields: [checkedInById], references: [id], onDelete: SetNull)
+  scanCount     Int       @default(0)
+  scanHistory   Json?
+
+  registeredAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+  @@index([status])
+  @@index([ticketToken])
+  @@index([checkedInAt])
+}
+
+model EventVolunteer {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("UserVolunteerRoles", fields: [userId], references: [id], onDelete: Cascade)
+
+  assignedById String?
+  assignedBy   User?   @relation("AssignedVolunteers", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model EventApproval {
+  id String @id @default(uuid())
+
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  adminId String
+  admin   User   @relation("EventApprovalAdmin", fields: [adminId], references: [id])
+
+  action  EventApprovalAction
+  remarks String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventId])
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model UserSession {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshTokenHash String
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model PasswordResetToken {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Only a SHA-256 hash of the value sent by email is persisted.
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum EventApprovalAction {
+  APPROVED
+  CHANGES_REQUESTED
+  REJECTED
+}
+
+enum RegistrationStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum RegistrationFormStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Role {
+  PARTICIPANT
+  EVENT_ADMIN
+  SUPER_ADMIN
+}
+
+enum UserType {
+  STUDENT
+  FACULTY
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum EventStatus {
+  DRAFT
+  PENDING_APPROVAL
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+  PUBLISHED
+  COMPLETED
+}
+
+model Community {
+  id               String       @id @default(uuid())
+  name             String
+  slug             String       @unique
+  shortDescription String?
+  fullDescription  String?
+  bannerUrl        String?
+  logoUrl          String?
+  status           EntityStatus @default(ACTIVE)
+
+  headId String?
+  head   User?   @relation("CommunityHead", fields: [headId], references: [id], onDelete: SetNull)
+
+  clubs       Club[]
+  memberships Membership[]
+  followers   Follow[]
+  updates     EntityUpdate[]
+  events      Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([headId])
+}
+
+model Club {
+  id          String     @id @default(uuid())
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+
+  name             String
+  slug             String       @unique
+  shortDescription String?
+  fullDescription  String?
+  bannerUrl        String?
+  logoUrl          String?
+  status           EntityStatus @default(ACTIVE)
+
+  headId String?
+  head   User?   @relation("ClubHead", fields: [headId], references: [id], onDelete: SetNull)
+
+  memberships Membership[]
+  followers   Follow[]
+  updates     EntityUpdate[]
+  events      Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([communityId])
+  @@index([status])
+  @@index([headId])
+}
+
+model Membership {
+  id     String         @id @default(uuid())
+  userId String
+  user   User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   MembershipRole @default(CORE_MEMBER)
+
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, communityId])
+  @@unique([userId, clubId])
+  @@index([userId])
+  @@index([communityId])
+  @@index([clubId])
+  @@index([role])
+}
+
+model Follow {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, communityId])
+  @@unique([userId, clubId])
+  @@index([userId])
+  @@index([communityId])
+  @@index([clubId])
+}
+
+model EntityUpdate {
+  id       String  @id @default(uuid())
+  title    String
+  content  String
+  imageUrl String?
+
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  clubId String?
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  status        UpdateStatus @default(DRAFT)
+  reviewRemarks String?
+  publishedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([communityId])
+  @@index([clubId])
+  @@index([authorId])
+  @@index([status])
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title   String
+  message String
+  type    NotificationType @default(INFO)
+  read    Boolean          @default(false)
+  link    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+enum EntityStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum MembershipRole {
+  HEAD
+  CORE_MEMBER
+}
+
+enum UpdateStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+}

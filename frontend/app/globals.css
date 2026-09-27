@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Urbanist:wght@300;400;500;600&family=Syne:wght@400;500;600;700&family=Pacifico&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════
+   PUVerse Design System v2
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* Fonts */
+  --font-display: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-ui: 'Urbanist', system-ui, sans-serif;
+  --font-mono: 'Syne', system-ui, sans-serif;
+  --font-cursive: 'Pacifico', cursive;
+
+  /* Accent */
+  --accent: #CC5F1C;
+  --accent-light: #D97A3E;
+  --accent-dark: #A84E16;
+
+  /* Text hierarchy */
+  --col-primary: #1A1A1A;
+  --col-secondary: #6B6B6B;
+  --col-dim: #999999;
+  --col-warm: #CC5F1C;
+
+  /* Surfaces */
+  --bg: #EAEAEA;
+  --surface: hsl(0 0% 96% / 0.55);
+  --surface-hover: hsl(0 0% 96% / 0.75);
+
+  /* Borders */
+  --line: hsl(0 0% 78%);
+  --line-soft: hsl(0 0% 85%);
+
+  /* Shadows / glow */
+  --shadow: hsl(0 0% 60% / 0.12);
+  --shadow-lg: hsl(0 0% 50% / 0.18);
+  --glow: hsl(0 0% 98% / 0.8);
+
+  /* Signal */
+  --positive: #34D399;
+  --positive-bg: rgba(52, 211, 153, 0.12);
+  --warning: #FBBF24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
+  --danger: #F87171;
+  --danger-bg: rgba(248, 113, 113, 0.12);
+  --info: #38BDF8;
+  --info-bg: rgba(56, 189, 248, 0.12);
+
+  /* Role colors */
+  --role-student: #38BDF8;
+  --role-admin: #A78BFA;
+  --role-super: #F4793A;
+  --role-platform: #F87171;
+
+  /* Radius */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-2xl: 24px;
+  --r-full: 9999px;
+
+  /* Grain */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* ─── Base ─── */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; height: 100%; }
+
+  body {
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--col-primary);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; text-decoration: none; }
+}
+
+@layer components {
+
+/* ─── Blob Background ─── */
+.blob-container {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.25;
+}
+
+.blob-1 {
+  top: -10%;
+  left: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, hsl(25 65% 45% / 0.45) 0%, transparent 70%);
+  animation: blob-float 25s ease-in-out infinite alternate;
+}
+
+.blob-2 {
+  top: 40%;
+  right: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, hsl(25 60% 40% / 0.35) 0%, transparent 70%);
+  animation: blob-float 30s ease-in-out infinite alternate-reverse;
+}
+
+.blob-3 {
+  bottom: -10%;
+  left: 20%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, hsl(25 65% 42% / 0.40) 0%, transparent 70%);
+  animation: blob-float 22s ease-in-out infinite alternate-reverse;
+}
+
+/* ─── Glass Card ─── */
+.glass-card {
+  background: hsl(0 0% 96% / 0.55);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(0 0% 85% / 0.5);
+  border-radius: 20px;
+  padding: 2.25rem;
+  box-shadow: 0 2px 20px var(--shadow), inset 0 1px 0 var(--glow);
+  transition: all 0.6s ease;
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+}
+
+.glass-card:hover {
+  box-shadow: 0 8px 40px var(--shadow-lg), inset 0 1px 0 var(--glow);
+  transform: translateY(-4px);
+}
+
+/* ─── Section transparent (for content over blobs) ─── */
+.section-transparent {
+  background: transparent;
+}
+
+} /* end @layer components */
+
+/* ─── Keyframes (unlayered — they don't affect cascade) ─── */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes riseIn { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes blob-float {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(5vw, 10vh) scale(1.1); }
+  100% { transform: translate(-3vw, 5vh) scale(0.95); }
+}
+
+@layer utilities {
+  .animate-fade-in { animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-rise { animation: riseIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .animate-scale-in { animation: scaleIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+  .delay-1 { animation-delay: 0.08s; }
+  .delay-2 { animation-delay: 0.16s; }
+  .delay-3 { animation-delay: 0.24s; }
+  .delay-4 { animation-delay: 0.32s; }
+  .delay-5 { animation-delay: 0.40s; }
+}
+
+/* ─── Scrollbar (unlayered is fine — no conflict with utilities) ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--col-secondary); }
