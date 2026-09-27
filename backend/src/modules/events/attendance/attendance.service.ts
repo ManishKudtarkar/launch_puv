@@ -25,34 +25,48 @@ export class AttendanceService {
   ) {
     await this.verifyScannerAuthorization(eventId, currentUser);
 
+    const now = new Date();
+    const token = dto.ticketToken.trim();
+
+    // Find registration by token globally first (token is unique across the system).
+    // This prevents false 404s when the volunteer's selected event ID differs from
+    // the actual event the ticket was issued for.
+    const registrationByToken = await this.prisma.studentRegistration.findFirst({
+      where: {
+        OR: [
+          { ticketToken: token },
+          { id: token },
+          { ticketToken: { contains: token } },
+        ],
+      },
+    });
+
+    // Resolve which event this token actually belongs to
+    const resolvedEventId = registrationByToken?.eventId ?? eventId;
+
+    // If token belongs to a different event, verify the volunteer is authorized for that event too
+    if (resolvedEventId !== eventId) {
+      await this.verifyScannerAuthorization(resolvedEventId, currentUser);
+    }
+
     const event = await this.prisma.event.findUnique({
-      where: { id: eventId },
+      where: { id: resolvedEventId },
     });
 
     if (!event) {
       throw new NotFoundException('Event not found');
     }
 
-    const now = new Date();
-
-    // Check if Event is already over / expired
+    // Check if event is already over / expired
     const eventEndTime = event.endTime || event.eventDate;
     const expiryCutoff = new Date(new Date(eventEndTime).getTime() + 24 * 60 * 60 * 1000); // 24h grace after end
     if (now > expiryCutoff && event.status === 'COMPLETED') {
       throw new BadRequestException('This event has concluded. QR code is expired.');
     }
 
-    const token = dto.ticketToken.trim();
-
-    // Find registration by ticketToken, registration ID, or token suffix
     const registration = await this.prisma.studentRegistration.findFirst({
       where: {
-        eventId,
-        OR: [
-          { ticketToken: token },
-          { id: token },
-          { ticketToken: { contains: token } },
-        ],
+        id: registrationByToken?.id ?? '__none__',
       },
       include: {
         user: {

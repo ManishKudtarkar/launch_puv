@@ -6,6 +6,7 @@ import {
   IsUrl,
   IsUUID,
   MaxLength,
+  Matches,
 } from 'class-validator';
 
 export class CreateEventDto {
@@ -20,7 +21,11 @@ export class CreateEventDto {
   description?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
+  // Allow both regular https:// URLs and base64 data URIs (for uploaded banner images)
+  @Matches(/^(https?:\/\/.+|data:image\/.+;base64,.+)$/, {
+    message: 'bannerUrl must be a valid URL or a base64 image data URI',
+  })
   bannerUrl?: string;
 
   @IsDateString()

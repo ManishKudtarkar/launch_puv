@@ -6,9 +6,12 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+import * as QRCode from 'qrcode';
 
 import { JwtAuthGuard } from '../../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -22,7 +25,7 @@ import { RegistrationsService } from './registrations.service';
 @Controller('events/:eventId/registrations')
 @UseGuards(JwtAuthGuard)
 export class RegistrationsController {
-  constructor(private readonly registrationsService: RegistrationsService) {}
+  constructor(private readonly registrationsService: RegistrationsService) { }
 
   // Student registration
   @Post()
@@ -45,6 +48,41 @@ export class RegistrationsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.registrationsService.findMyRegistration(eventId, user);
+  }
+
+  // Student — QR code PNG for own ticket
+  @Get('me/qr')
+  async getMyQrCode(
+    @Param('eventId', new ParseUUIDPipe()) eventId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const registration = await this.registrationsService.findMyRegistration(
+      eventId,
+      user,
+    );
+
+    const token = (registration as { ticketToken?: string }).ticketToken;
+
+    if (!token) {
+      res.status(404).json({ message: 'Ticket token not found' });
+      return;
+    }
+
+    const pngBuffer = await QRCode.toBuffer(token, {
+      errorCorrectionLevel: 'H',
+      width: 400,
+      margin: 2,
+      color: { dark: '#1A1A1A', light: '#FFFFFF' },
+    });
+
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="ticket-${token}.png"`,
+    );
+    res.send(pngBuffer);
   }
 
   // Event Admin — registration count

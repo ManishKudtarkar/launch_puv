@@ -8,6 +8,7 @@ import {
 import * as crypto from 'crypto';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../database/prisma/prisma.service';
+import { EmailService } from '../../email/email.service';
 
 import { CreateRegistrationDto } from './dto/create-registration.dto';
 import type { AuthenticatedUser } from '../../auth/types/authenticated-user.type';
@@ -19,7 +20,10 @@ interface SelectedField {
 
 @Injectable()
 export class RegistrationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) { }
 
   // ============================================================
   // STUDENT — CREATE REGISTRATION
@@ -113,7 +117,7 @@ export class RegistrationsService {
 
     const ticketToken = `PUV-${(event.title || 'EV').slice(0, 3).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-    return this.prisma.studentRegistration.create({
+    const registration = await this.prisma.studentRegistration.create({
       data: {
         eventId,
         userId: user.userId,
@@ -125,6 +129,33 @@ export class RegistrationsService {
         event: true,
       },
     });
+
+    // Fire-and-forget ticket confirmation email — never block the response
+    const studentUser = await this.prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { fullName: true, email: true },
+    });
+
+    if (studentUser) {
+      const frontendUrl =
+        process.env.FRONTEND_URL?.replace(/\/$/, '') || 'http://localhost:3000';
+
+      this.emailService
+        .sendTicketEmail({
+          to: studentUser.email,
+          studentName: studentUser.fullName,
+          eventTitle: event.title,
+          eventDate: event.eventDate,
+          eventVenue: event.venue ?? null,
+          ticketToken,
+          ticketsPageUrl: `${frontendUrl}/student/tickets`,
+        })
+        .catch(() => {
+          // Email failure is non-fatal — registration is already saved
+        });
+    }
+
+    return registration;
   }
 
   // ============================================================
@@ -132,17 +163,8 @@ export class RegistrationsService {
   // ============================================================
 
   async findMyRegistration(eventId: string, user: AuthenticatedUser) {
-    const event = await this.prisma.event.findFirst({
-      where: {
-        id: eventId,
-        status: 'PUBLISHED',
-      },
-    });
-
-    if (!event) {
-      throw new NotFoundException('Published event not found');
-    }
-
+    // No status filter — the student already registered when the event was PUBLISHED.
+    // Their ticket must remain accessible regardless of the event's current status.
     let registration = await this.prisma.studentRegistration.findUnique({
       where: {
         eventId_userId: {
@@ -160,7 +182,8 @@ export class RegistrationsService {
     }
 
     if (!registration.ticketToken) {
-      const token = `PUV-${(event.title || 'EV').slice(0, 3).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+      const eventRecord = await this.prisma.event.findUnique({ where: { id: eventId } });
+      const token = `PUV-${(eventRecord?.title || 'EV').slice(0, 3).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
       registration = await this.prisma.studentRegistration.update({
         where: { id: registration.id },
         data: { ticketToken: token },
