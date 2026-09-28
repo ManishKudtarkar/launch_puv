@@ -135,9 +135,7 @@ export class EventsService {
   async getPublishedEvents() {
     return this.prisma.event.findMany({
       where: {
-        status: {
-          in: ['PUBLISHED', 'APPROVED', 'DRAFT', 'PENDING_APPROVAL'],
-        },
+        status: 'PUBLISHED',
       },
       include: {
         community: { select: { id: true, name: true, slug: true } },
@@ -180,18 +178,27 @@ export class EventsService {
 
   async getMyEvents(user: AuthenticatedUser) {
     if (user.role === Role.EVENT_ADMIN || user.role === Role.SUPER_ADMIN) {
-      return this.prisma.event.findMany({
+      const events = await this.prisma.event.findMany({
         where: {
           createdById: user.userId,
         },
         include: {
           community: { select: { id: true, name: true, slug: true } },
           club: { select: { id: true, name: true, slug: true } },
+          approvals: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          }
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
+
+      return events.map((event) => ({
+        ...event,
+        reviewNotes: event.approvals?.[0]?.remarks || null,
+      }));
     }
 
     const memberships = await this.prisma.membership.findMany({
@@ -204,7 +211,7 @@ export class EventsService {
       .map((m) => m.clubId)
       .filter((id): id is string => Boolean(id));
 
-    return this.prisma.event.findMany({
+    const events = await this.prisma.event.findMany({
       where: {
         OR: [
           { createdById: user.userId },
@@ -215,11 +222,20 @@ export class EventsService {
       include: {
         community: { select: { id: true, name: true, slug: true } },
         club: { select: { id: true, name: true, slug: true } },
+        approvals: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        }
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
+
+    return events.map((event) => ({
+      ...event,
+      reviewNotes: event.approvals?.[0]?.remarks || null,
+    }));
   }
 
   // =========================================================
