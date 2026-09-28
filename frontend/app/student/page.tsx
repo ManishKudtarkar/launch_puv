@@ -35,25 +35,31 @@ export default function StudentDashboard() {
     if (!authUser) return;
     let active = true;
 
+    // Fetch events list once, then batch-fetch registrations with a concurrency
+    // limit of 5 to avoid flooding the backend with N parallel requests.
     api.events.list().then(async (eventsList) => {
       const results: { id: string; eventTitle: string; registeredAt: string; status: string }[] = [];
-      await Promise.allSettled(
-        eventsList.map(async (ev) => {
-          try {
-            const reg = await api.events.registrations.me(ev.id);
-            if (reg) {
-              results.push({
-                id: reg.id,
-                eventTitle: ev.title,
-                registeredAt: (reg as any).createdAt || (reg as any).registeredAt || new Date().toISOString(),
-                status: (reg as any).status || "ACTIVE",
-              });
+      const CONCURRENCY = 5;
+      for (let i = 0; i < eventsList.length; i += CONCURRENCY) {
+        const batch = eventsList.slice(i, i + CONCURRENCY);
+        await Promise.allSettled(
+          batch.map(async (ev) => {
+            try {
+              const reg = await api.events.registrations.me(ev.id);
+              if (reg) {
+                results.push({
+                  id: reg.id,
+                  eventTitle: ev.title,
+                  registeredAt: (reg as any).createdAt || (reg as any).registeredAt || new Date().toISOString(),
+                  status: (reg as any).status || "ACTIVE",
+                });
+              }
+            } catch {
+              // not registered for this event — expected
             }
-          } catch {
-            // not registered
-          }
-        })
-      );
+          })
+        );
+      }
       if (active) setRealRegs(results);
     }).catch(() => {});
 

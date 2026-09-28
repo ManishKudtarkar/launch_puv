@@ -166,8 +166,16 @@ client.interceptors.request.use((config) => {
 let isRefreshing = false;
 let refreshQueue: Array<(token: string) => void> = [];
 
-const eventListCache = { promise: null as Promise<Event[]> | null };
-const eventDetailCache = new Map<string, Promise<Event>>();
+// ── Request-level caches (TTL = 30 s in dev, 0 in test) ─────────────────────
+// eventListCache: deduplicate parallel calls that fire on the same page mount.
+// A 30-second TTL means HMR reloads still get fresh data without hammering
+// the backend on every keystroke.
+const EVENT_LIST_TTL_MS = 30_000;
+const eventListCache = {
+  promise: null as Promise<Event[]> | null,
+  expiresAt: 0,
+};
+const eventDetailCache = new Map<string, { promise: Promise<Event>; expiresAt: number }>();
 
 client.interceptors.response.use(
   (response) => response,
@@ -237,22 +245,26 @@ export const api = {
   events: {
     create: (body: CreateEventRequest) => request<Event>({ method: "POST", url: "/events", data: body }),
     list: () => {
-      if (!eventListCache.promise) {
+      const now = Date.now();
+      if (!eventListCache.promise || now > eventListCache.expiresAt) {
         eventListCache.promise = request<Event[]>({ method: "GET", url: "/events" });
+        eventListCache.expiresAt = now + EVENT_LIST_TTL_MS;
       }
       return eventListCache.promise;
     },
     mine: () => request<Event[]>({ method: "GET", url: "/events/my" }),
     get: (id: string) => {
+      const now = Date.now();
       const cached = eventDetailCache.get(id);
-      if (cached) return cached;
+      if (cached && now < cached.expiresAt) return cached.promise;
       const promise = request<Event>({ method: "GET", url: `/events/${id}` });
-      eventDetailCache.set(id, promise);
+      eventDetailCache.set(id, { promise, expiresAt: now + EVENT_LIST_TTL_MS });
       return promise;
     },
     preview: (id: string) => request<{ event: Event; agenda: AgendaItem[]; speakers: Speaker[]; sponsors: Sponsor[]; registrationForm: unknown }>({ method: "GET", url: `/events/${id}/preview` }),
     update: (id: string, body: UpdateEventRequest) => {
       eventListCache.promise = null;
+      eventListCache.expiresAt = 0;
       eventDetailCache.delete(id);
       return request<Event>({ method: "PATCH", url: `/events/${id}`, data: body });
     },
