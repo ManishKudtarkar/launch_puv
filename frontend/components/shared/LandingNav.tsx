@@ -75,7 +75,7 @@ export default function LandingNav() {
                 </button>
 
                 {profileOpen && (
-                  <div className="absolute right-0 top-12 w-52 rounded-[20px] border border-[hsl(25_18%_75%_/_0.55)] bg-[hsl(35_20%_97%_/_0.98)] p-2.5 shadow-2xl backdrop-blur-xl z-50">
+                  <div className="absolute right-0 top-12 w-52 rounded-[20px] border border-[hsl(25_18%_75%_/_0.55)] bg-[hsl(35_20%_97%_/_0.98)] p-2.5 shadow-2xl backdrop-blur-xl z-[400]">
                     <div className="px-3 py-2 border-b border-[hsl(25_18%_75%_/_0.3)] mb-1">
                       <p className="text-[0.78rem] font-semibold text-[var(--col-primary)] truncate font-[family-name:var(--font-display)]">
                         {user.fullName || "User"}
