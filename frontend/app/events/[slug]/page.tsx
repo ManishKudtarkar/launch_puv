@@ -344,14 +344,12 @@ export default function PublicEventSlugPage() {
         {/* Header / Event Title Section (Clean & Bold outside banner) */}
         <div className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
           <div>
-            {event.category && (
-              <div className="inline-flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
-                <span className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--accent)] font-[family-name:var(--font-mono)] font-bold">
-                  {event.category}
-                </span>
-              </div>
-            )}
+            <div className="inline-flex items-center gap-2 mb-2">
+              <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+              <span className="text-[0.68rem] uppercase tracking-[0.18em] text-[var(--accent)] font-[family-name:var(--font-mono)] font-bold">
+                {event.category ?? "Technology & Innovation"}
+              </span>
+            </div>
             <h1 className="text-[clamp(1.85rem,3.8vw,2.75rem)] font-extrabold leading-[1.15] tracking-[-0.03em] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
               {event.title}
             </h1>
@@ -409,7 +407,7 @@ export default function PublicEventSlugPage() {
         </div>
 
         {/* Clean Banner Image Section (No overlapping text) */}
-        {event.bannerUrl && (
+        {event.bannerUrl ? (
           <div className="relative rounded-[24px] overflow-hidden mb-8 border border-[var(--line-soft)] shadow-md aspect-[21/9] sm:aspect-[24/9] max-h-[380px] w-full bg-slate-900">
             <img
               src={event.bannerUrl}
@@ -417,14 +415,31 @@ export default function PublicEventSlugPage() {
               className="w-full h-full object-cover"
             />
           </div>
+        ) : (
+          <Squircle
+            cornerRadius={24}
+            cornerSmoothing={1}
+            className="w-full min-h-[220px] mb-8 flex items-center justify-center relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #182238 0%, #0d131f 100%)" }}
+          >
+            <div
+              className="absolute inset-0 opacity-20"
+              style={{ backgroundImage: "radial-gradient(#fff 1px, transparent 1px)", backgroundSize: "26px 26px" }}
+            />
+            <div className="relative z-10 text-center px-6 py-8">
+              <span className="text-[0.85rem] uppercase tracking-[0.2em] font-bold text-white/60 font-[family-name:var(--font-mono)]">
+                {event.category ?? "PUVerse Event"}
+              </span>
+            </div>
+          </Squircle>
         )}
 
-        {/* Top Information Metric Cards */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        {/* 3 Top Information Metric Cards (Structured like Photo 1 with Orange Theme) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <Squircle
             cornerRadius={20}
             cornerSmoothing={1}
-            className="flex-1 flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
+            className="flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
           >
             <div className="w-11 h-11 rounded-[14px] bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 flex items-center justify-center flex-shrink-0 text-[#CC5F1C]">
               <Calendar className="w-5 h-5" strokeWidth={1.8} />
@@ -439,30 +454,28 @@ export default function PublicEventSlugPage() {
             </div>
           </Squircle>
 
-          {event.venue && (
-            <Squircle
-              cornerRadius={20}
-              cornerSmoothing={1}
-              className="flex-1 flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
-            >
-              <div className="w-11 h-11 rounded-[14px] bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 flex items-center justify-center flex-shrink-0 text-[#CC5F1C]">
-                <MapPin className="w-5 h-5" strokeWidth={1.8} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[0.68rem] text-slate-500 font-[family-name:var(--font-ui)] font-medium">
-                  Venue
-                </p>
-                <p className="text-[0.92rem] font-bold text-slate-900 font-[family-name:var(--font-display)] mt-0.5 truncate">
-                  {String(event.venue)}
-                </p>
-              </div>
-            </Squircle>
-          )}
+          <Squircle
+            cornerRadius={20}
+            cornerSmoothing={1}
+            className="flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
+          >
+            <div className="w-11 h-11 rounded-[14px] bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 flex items-center justify-center flex-shrink-0 text-[#CC5F1C]">
+              <MapPin className="w-5 h-5" strokeWidth={1.8} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[0.68rem] text-slate-500 font-[family-name:var(--font-ui)] font-medium">
+                Venue
+              </p>
+              <p className="text-[0.92rem] font-bold text-slate-900 font-[family-name:var(--font-display)] mt-0.5 truncate">
+                {event.venue ? String(event.venue) : "Campus Auditorium"}
+              </p>
+            </div>
+          </Squircle>
 
           <Squircle
             cornerRadius={20}
             cornerSmoothing={1}
-            className="flex-1 flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
+            className="flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
           >
             <div className="w-11 h-11 rounded-[14px] bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 flex items-center justify-center flex-shrink-0 text-[#CC5F1C]">
               <Ticket className="w-5 h-5" strokeWidth={1.8} />
@@ -482,16 +495,20 @@ export default function PublicEventSlugPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
           <div className="space-y-6 min-w-0">
             {/* About the Event (Photo 1 Structure) */}
-            {event.description && (
-              <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
-                <h2 className="text-[1.25rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-4">
-                  About the Event
-                </h2>
+            <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+              <h2 className="text-[1.25rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-4">
+                About the Event
+              </h2>
+              {event.description ? (
                 <p className="text-[0.88rem] text-slate-600 leading-[1.8] font-[family-name:var(--font-ui)] whitespace-pre-line">
                   {event.description as string}
                 </p>
-              </Squircle>
-            )}
+              ) : (
+                <p className="text-[0.88rem] text-slate-600 leading-[1.8] font-[family-name:var(--font-ui)]">
+                  Join us for this exciting campus experience. Engage directly with student leaders, mentors, and experts in an interactive environment designed to help you expand your network and learn practical skills.
+                </p>
+              )}
+            </Squircle>
 
             {/* Schedule Highlights (Photo 1 Structure) */}
             {agenda.length > 0 ? (
@@ -558,7 +575,7 @@ export default function PublicEventSlugPage() {
                           className="w-12 h-12 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)] mb-3"
                           style={{ background: "linear-gradient(135deg, var(--col-primary), hsl(0 0% 30%))" }}
                         >
-                          {initialsFromName(s.name)}
+                          {initialsFromName(s.name || "Speaker")}
                         </Squircle>
                       )}
                       <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
@@ -594,7 +611,7 @@ export default function PublicEventSlugPage() {
                           className="w-8 h-8 flex items-center justify-center text-white text-[0.42rem] font-bold font-[family-name:var(--font-display)] flex-shrink-0"
                           style={{ background: "linear-gradient(135deg, var(--col-primary), hsl(0 0% 30%))" }}
                         >
-                          {initialsFromName(s.name)}
+                          {initialsFromName(s.name || "Sponsor")}
                         </Squircle>
                       )}
                       <div>
@@ -637,21 +654,19 @@ export default function PublicEventSlugPage() {
                   </div>
                 </div>
 
-                {event.venue && (
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 text-white">
-                      <MapPin className="w-4 h-4" strokeWidth={1.8} />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-white/75 font-[family-name:var(--font-mono)]">
-                        VENUE
-                      </span>
-                      <p className="text-[0.88rem] font-bold text-white font-[family-name:var(--font-display)] truncate">
-                        {String(event.venue)}
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3.5">
+                  <div className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 text-white">
+                    <MapPin className="w-4 h-4" strokeWidth={1.8} />
                   </div>
-                )}
+                  <div className="min-w-0">
+                    <span className="text-[0.62rem] font-bold uppercase tracking-[0.14em] text-white/75 font-[family-name:var(--font-mono)]">
+                      VENUE
+                    </span>
+                    <p className="text-[0.88rem] font-bold text-white font-[family-name:var(--font-display)] truncate">
+                      {event.venue ? String(event.venue) : "PU Tech Center, Hall A"}
+                    </p>
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-3.5">
                   <div className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center flex-shrink-0 text-white">
@@ -852,33 +867,29 @@ export default function PublicEventSlugPage() {
       {/* Organizer & More Events Section */}
       {event && (
         <div className="mx-auto max-w-[1180px] px-4 py-8 md:px-8">
-          {event.organizer && (
-            <section className="mt-8">
-              <div className="rounded-[24px] border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-                <div className="mb-3 flex items-center gap-3">
-                  <Building2 className="h-6 w-6 text-[var(--accent)]" />
-                  <p className="text-[0.84rem] font-black uppercase tracking-[0.14em] text-[var(--col-primary)] font-[family-name:var(--font-mono)]">
-                    Organizer
+          <section className="mt-8">
+            <div className="rounded-[24px] border border-[var(--line-soft)] bg-[var(--surface)] p-5">
+              <div className="mb-3 flex items-center gap-3">
+                <Building2 className="h-6 w-6 text-[var(--accent)]" />
+                <p className="text-[0.84rem] font-black uppercase tracking-[0.14em] text-[var(--col-primary)] font-[family-name:var(--font-mono)]">
+                  Organizer
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--col-primary)] text-[0.8rem] font-black text-white">
+                  {initialsFromName(event.organizer || event.title || "Organizer")}
+                </div>
+                <div>
+                  <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
+                    {event.organizer || "PUVerse Team"}
+                  </p>
+                  <p className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                    {event.category ?? "Campus Initiative"}
                   </p>
                 </div>
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--col-primary)] text-[0.8rem] font-black text-white">
-                    {initialsFromName(event.organizer)}
-                  </div>
-                  <div>
-                    <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
-                      {event.organizer}
-                    </p>
-                    {event.category && (
-                      <p className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                        {event.category}
-                      </p>
-                    )}
-                  </div>
-                </div>
               </div>
-            </section>
-          )}
+            </div>
+          </section>
 
           {relatedEvents.length > 0 && (
             <section className="mt-8">
@@ -905,19 +916,15 @@ export default function PublicEventSlugPage() {
                         </div>
                       )}
                     </div>
-                    {related.category && (
-                      <div className="text-[0.72rem] uppercase tracking-[0.1em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
-                        {related.category}
-                      </div>
-                    )}
+                    <div className="text-[0.72rem] uppercase tracking-[0.1em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
+                      {related.category ?? "General"}
+                    </div>
                     <div className="mt-2 text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">
                       {related.title}
                     </div>
-                    {related.description && (
-                      <div className="mt-2 text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] leading-[1.5] line-clamp-2">
-                        {related.description as string}
-                      </div>
-                    )}
+                    <div className="mt-2 text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] leading-[1.5] line-clamp-2">
+                      {related.description ?? "Discover this campus event."}
+                    </div>
                   </Link>
                 ))}
               </div>
