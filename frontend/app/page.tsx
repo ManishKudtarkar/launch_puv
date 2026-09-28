@@ -40,7 +40,7 @@ export default function LandingPage() {
 
             <main className="relative z-10">
                 {/* Hero Section */}
-                <section className="section-transparent min-h-screen flex items-center pt-8 pb-14 w-full max-w-full overflow-x-hidden">
+                <section className="section-transparent py-10 lg:py-16 w-full max-w-full overflow-x-hidden">
                     <div className="max-w-[1280px] mx-auto px-6 md:px-12 w-full">
 
                         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 items-center">
