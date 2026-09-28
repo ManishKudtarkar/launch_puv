@@ -17,6 +17,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Menu,
+  X,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -37,6 +39,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const demoLogout = useDemoStore((s) => s.logout);
   const authLogout = useAuthStore((s) => s.logout);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
@@ -83,9 +86,105 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }} />
       </div>
 
-      {/* Sidebar */}
+      {/* ─── Mobile top bar ─── */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-[200] h-14 flex items-center justify-between px-4 border-b border-[hsl(0_0%_85%_/_0.4)]"
+        style={{ background: "hsl(0 0% 96% / 0.90)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+      >
+        <Link href="/" className="flex items-center gap-[7px]">
+          <div className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
+          <span className="text-[1.05rem] leading-none">
+            <span className="font-extrabold text-[var(--col-primary)] tracking-[-0.02em] font-[family-name:var(--font-display)]">PU</span>
+            <span className="font-normal text-[var(--col-secondary)] font-[family-name:var(--font-cursive)]">verse</span>
+          </span>
+        </Link>
+        <button onClick={() => setMobileDrawerOpen(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-[10px] text-[var(--col-primary)] hover:bg-[hsl(0_0%_0%_/_0.06)] transition-all cursor-pointer"
+          aria-label="Open navigation">
+          <Menu className="w-5 h-5" strokeWidth={1.8} />
+        </button>
+      </div>
+
+      {/* ─── Mobile drawer backdrop ─── */}
+      {mobileDrawerOpen && (
+        <div className="md:hidden fixed inset-0 z-[250] bg-[hsl(0_0%_10%_/_0.35)] backdrop-blur-sm"
+          onClick={() => setMobileDrawerOpen(false)} />
+      )}
+
+      {/* ─── Mobile slide-over drawer ─── */}
+      <div className="md:hidden fixed top-0 left-0 bottom-0 z-[260] w-[272px] max-w-[85vw] flex flex-col transition-transform duration-300"
+        style={{
+          transform: mobileDrawerOpen ? "translateX(0)" : "translateX(-100%)",
+          background: "hsl(0 0% 96% / 0.96)",
+          backdropFilter: "blur(40px) saturate(1.5)",
+          WebkitBackdropFilter: "blur(40px) saturate(1.5)",
+          borderRight: "1px solid hsl(0 0% 85% / 0.5)",
+          boxShadow: "4px 0 32px hsl(0 0% 0% / 0.1)",
+        }}>
+        {/* Drawer header */}
+        <div className="flex items-center justify-between px-4 h-14 border-b border-[hsl(0_0%_85%_/_0.4)] flex-shrink-0">
+          <Link href="/" className="flex items-center gap-[7px]" onClick={() => setMobileDrawerOpen(false)}>
+            <div className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
+            <span className="text-[1.05rem] leading-none">
+              <span className="font-extrabold text-[var(--col-primary)] tracking-[-0.02em] font-[family-name:var(--font-display)]">PU</span>
+              <span className="font-normal text-[var(--col-secondary)] font-[family-name:var(--font-cursive)]">verse</span>
+            </span>
+          </Link>
+          <button onClick={() => setMobileDrawerOpen(false)}
+            className="w-8 h-8 flex items-center justify-center rounded-[9px] text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:bg-[hsl(0_0%_0%_/_0.05)] transition-all cursor-pointer"
+            aria-label="Close menu">
+            <X className="w-4 h-4" strokeWidth={1.8} />
+          </button>
+        </div>
+        {/* Back to Dashboard */}
+        <div className="px-3 pt-3 pb-1">
+          <Link href="/student" onClick={() => setMobileDrawerOpen(false)}
+            className="flex items-center gap-2 px-3 py-2.5 rounded-[12px] text-[0.74rem] font-medium transition-all duration-200 font-[family-name:var(--font-ui)]"
+            style={{ background: "hsl(25 65% 45% / 0.10)", border: "1px solid hsl(25 65% 45% / 0.25)", color: "var(--accent-light)" }}>
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
+            </svg>
+            Main Dashboard
+          </Link>
+        </div>
+        <div className="mx-3 my-2 h-px" style={{ background: "linear-gradient(90deg, transparent, hsl(0 0% 80% / 0.4), transparent)" }} />
+        {/* Drawer nav */}
+        <nav className="flex-1 px-2 py-2 overflow-y-auto space-y-0.5">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+            const Icon = item.icon;
+            return (
+              <Link key={item.href} href={item.href} onClick={() => setMobileDrawerOpen(false)}
+                className={`flex items-center gap-3 px-3 py-3 rounded-[13px] transition-all duration-200 font-[family-name:var(--font-ui)] ${isActive ? "bg-[var(--col-primary)] text-[var(--bg)]" : "text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:bg-[hsl(0_0%_100%_/_0.6)]"}`}>
+                <div className="w-7 h-7 flex items-center justify-center flex-shrink-0 rounded-[9px]"
+                  style={{ background: isActive ? "hsl(0 0% 100% / 0.15)" : "hsl(0 0% 0% / 0.04)" }}>
+                  <Icon className="w-[14px] h-[14px]" strokeWidth={1.8} />
+                </div>
+                <span className="text-[0.82rem] font-medium">{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+        {/* Drawer user + logout */}
+        <div className="px-3 py-4 border-t border-[hsl(0_0%_85%_/_0.4)] flex-shrink-0">
+          <div className="flex items-center gap-3 p-2.5 rounded-[13px] bg-[hsl(0_0%_100%_/_0.6)]">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[0.58rem] font-bold flex-shrink-0"
+              style={{ background: "linear-gradient(135deg, var(--role-admin), var(--accent))" }}>
+              {user?.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[0.74rem] font-medium text-[var(--col-primary)] truncate font-[family-name:var(--font-display)]">{user?.name}</p>
+              <p className="text-[0.58rem] text-[var(--col-dim)] truncate font-[family-name:var(--font-mono)]">Event Admin</p>
+            </div>
+            <button onClick={handleLogout} className="w-7 h-7 flex items-center justify-center text-[var(--col-dim)] hover:text-[var(--col-primary)] transition-colors cursor-pointer rounded-[8px]" title="Logout">
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Sidebar (desktop only) ─── */}
       <aside
-        className="fixed top-0 left-0 h-screen z-[200] flex flex-col overflow-hidden"
+        className="hidden md:flex fixed top-0 left-0 h-screen z-[200] flex-col overflow-hidden"
         style={{
           width: `${sidebarWidth}px`,
           transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -260,13 +359,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      {/* Main content with zoom protection */}
+      {/* Main content — no margin on mobile, sidebar offset on md+ */}
       <main
-        className="relative z-[3] min-h-screen pt-8 pb-20 px-4 sm:px-6 lg:px-8 min-w-0 max-w-full overflow-x-hidden"
-        style={{
-          marginLeft: `${sidebarWidth}px`,
-          width: `calc(100% - ${sidebarWidth}px)`,
-          transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        className="relative z-[3] min-h-screen pt-14 md:pt-8 pb-20 px-4 sm:px-6 lg:px-8 min-w-0 max-w-full overflow-x-hidden"
+        style={{ marginLeft: "0px", width: "100%" }}
+        ref={(el) => {
+          if (!el) return;
+          const apply = () => {
+            if (window.innerWidth >= 768) {
+              el.style.marginLeft = `${sidebarWidth}px`;
+              el.style.width = `calc(100% - ${sidebarWidth}px)`;
+            } else {
+              el.style.marginLeft = "0px";
+              el.style.width = "100%";
+            }
+          };
+          apply();
         }}
       >
         <div className="max-w-[1200px] mx-auto w-full min-w-0">

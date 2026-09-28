@@ -3,7 +3,7 @@
 import { Squircle } from "@squircle-js/react";
 import { useDemoStore } from "@/store/demo-store";
 import { useState } from "react";
-import { Mail, Building2, GraduationCap, Calendar, Shield, KeyRound, Ticket, Award, ClipboardList, X } from "lucide-react";
+import { Mail, Building2, GraduationCap, Calendar, Shield, KeyRound, Ticket, Award, ClipboardList, X, Eye, EyeOff } from "lucide-react";
 
 export default function StudentProfilePage() {
   const user = useDemoStore((s) => s.user);
@@ -12,6 +12,9 @@ export default function StudentProfilePage() {
   const certificates = useDemoStore((s) => s.certificates);
   const [showSave, setShowSave] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
 
   const activeRegs = registrations.filter((r) => r.status !== "cancelled").length;
   const activeTickets = tickets.filter((t) => t.status === "active").length;
@@ -115,7 +118,7 @@ export default function StudentProfilePage() {
           </div>
 
           {/* Stats strip */}
-          <div className="grid grid-cols-3 gap-3 mt-7">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-7">
             {stats.map((s) => (
               <div
                 key={s.label}
@@ -144,7 +147,7 @@ export default function StudentProfilePage() {
       </Squircle>
 
       {/* Two-column layout for details */}
-      <div className="grid gap-5 lg:grid-cols-[1.3fr_0.7fr]">
+      <div className="grid gap-5 grid-cols-1 lg:grid-cols-[1.3fr_0.7fr]">
         {/* Personal info form */}
         <Squircle
           cornerRadius={28}
@@ -163,11 +166,13 @@ export default function StudentProfilePage() {
 
           <form onSubmit={handleSave} className="space-y-4">
             {[
-              { label: "Full Name", id: "name", value: user?.name, icon: null, disabled: false },
-              { label: "Email", id: "email", value: user?.email, icon: Mail, disabled: true },
-              { label: "Department", id: "dept", value: user?.department ?? "CSE", icon: Building2, disabled: false },
-              { label: "Year", id: "year", value: user?.year ?? "3rd Year", icon: GraduationCap, disabled: false },
-              { label: "Organization", id: "org", value: user?.organization ?? "", icon: Calendar, disabled: false },
+              { label: "Full Name",     id: "name",  value: user?.name,               icon: null,        disabled: false, placeholder: "Enter your full name" },
+              { label: "Email",         id: "email", value: user?.email,              icon: Mail,        disabled: true,  placeholder: "" },
+              { label: "Department",    id: "dept",  value: user?.department ?? "CSE", icon: Building2,  disabled: false, placeholder: "Select your department" },
+              { label: "Roll Number",   id: "roll",  value: "",                       icon: null,        disabled: false, placeholder: "Enter your university roll number" },
+              { label: "Phone Number",  id: "phone", value: "",                       icon: null,        disabled: false, placeholder: "Enter 10-digit mobile number" },
+              { label: "Year",          id: "year",  value: user?.year ?? "3rd Year", icon: GraduationCap, disabled: false, placeholder: "e.g. 3rd Year" },
+              { label: "Organization",  id: "org",   value: user?.organization ?? "", icon: Calendar,   disabled: false, placeholder: "Your department or club" },
             ].map((field) => (
               <div key={field.id}>
                 <label className="block text-[0.68rem] font-medium text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mb-1.5">
@@ -188,6 +193,7 @@ export default function StudentProfilePage() {
                     type={field.id === "email" ? "email" : "text"}
                     defaultValue={field.value}
                     disabled={field.disabled}
+                    placeholder={field.placeholder}
                     className="flex-1 bg-transparent text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none placeholder:text-[var(--col-dim)] disabled:cursor-not-allowed"
                   />
                 </Squircle>
@@ -415,31 +421,42 @@ export default function StudentProfilePage() {
             </div>
 
             <div className="space-y-3">
-              {[
-                { label: "Current Password", id: "current" },
-                { label: "New Password", id: "new" },
-                { label: "Confirm Password", id: "confirm" },
-              ].map((field) => (
-                <div key={field.id}>
-                  <label className="block text-[0.65rem] font-medium text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mb-1">
-                    {field.label}
-                  </label>
-                  <Squircle
-                    cornerRadius={12}
-                    cornerSmoothing={1}
-                    className="px-4 py-2.5"
-                    style={{
-                      background: "hsl(0 0% 100% / 0.55)",
-                      border: "1px solid hsl(0 0% 85% / 0.4)",
-                    }}
-                  >
-                    <input
-                      type="password"
-                      className="w-full bg-transparent text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none"
-                    />
-                  </Squircle>
-                </div>
-              ))}
+              {/* Current Password */}
+              <div>
+                <label className="block text-[0.65rem] font-medium text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mb-1">Current Password</label>
+                <Squircle cornerRadius={12} cornerSmoothing={1} className="flex items-center gap-2 px-4 py-2.5"
+                  style={{ background: "hsl(0 0% 100% / 0.55)", border: "1px solid hsl(0 0% 85% / 0.4)" }}>
+                  <input type={showCurrentPw ? "text" : "password"} placeholder="Enter current password"
+                    className="flex-1 bg-transparent text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none placeholder:text-[var(--col-dim)]" />
+                  <button type="button" onClick={() => setShowCurrentPw(v => !v)} className="text-[var(--col-dim)] hover:text-[var(--col-primary)] transition-colors cursor-pointer flex-shrink-0">
+                    {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </Squircle>
+              </div>
+              {/* New Password */}
+              <div>
+                <label className="block text-[0.65rem] font-medium text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mb-1">New Password</label>
+                <Squircle cornerRadius={12} cornerSmoothing={1} className="flex items-center gap-2 px-4 py-2.5"
+                  style={{ background: "hsl(0 0% 100% / 0.55)", border: "1px solid hsl(0 0% 85% / 0.4)" }}>
+                  <input type={showNewPw ? "text" : "password"} placeholder="Enter new password"
+                    className="flex-1 bg-transparent text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none placeholder:text-[var(--col-dim)]" />
+                  <button type="button" onClick={() => setShowNewPw(v => !v)} className="text-[var(--col-dim)] hover:text-[var(--col-primary)] transition-colors cursor-pointer flex-shrink-0">
+                    {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </Squircle>
+              </div>
+              {/* Confirm Password */}
+              <div>
+                <label className="block text-[0.65rem] font-medium text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mb-1">Confirm Password</label>
+                <Squircle cornerRadius={12} cornerSmoothing={1} className="flex items-center gap-2 px-4 py-2.5"
+                  style={{ background: "hsl(0 0% 100% / 0.55)", border: "1px solid hsl(0 0% 85% / 0.4)" }}>
+                  <input type={showConfirmPw ? "text" : "password"} placeholder="Re-enter new password"
+                    className="flex-1 bg-transparent text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none placeholder:text-[var(--col-dim)]" />
+                  <button type="button" onClick={() => setShowConfirmPw(v => !v)} className="text-[var(--col-dim)] hover:text-[var(--col-primary)] transition-colors cursor-pointer flex-shrink-0">
+                    {showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </Squircle>
+              </div>
             </div>
 
             <div className="flex gap-2 mt-5">

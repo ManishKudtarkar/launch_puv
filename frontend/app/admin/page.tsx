@@ -95,7 +95,7 @@ export default function AdminDashboard() {
 
       {loading && <p className="mb-6 text-[0.82rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Loading...</p>}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -112,7 +112,7 @@ export default function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px] items-start">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr_320px] items-start">
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Recent Events</h2>

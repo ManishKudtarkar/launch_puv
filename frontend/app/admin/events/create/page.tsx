@@ -693,8 +693,16 @@ export default function CreateEventPage() {
         </div>
       ) : (
         <>
-          {/* Steps Wizard Bar */}
-          <div className="flex gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none">
+          {/* Steps Wizard Bar — desktop: scrollable pill row | mobile: compact indicator */}
+          <div className="flex sm:hidden items-center justify-between mb-4 px-1">
+            <span className="text-[0.72rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)]">
+              Step {step + 1} of {STEPS.length}
+            </span>
+            <span className="text-[0.72rem] font-medium text-[var(--accent)] font-[family-name:var(--font-display)]">
+              {STEPS[step]?.label}
+            </span>
+          </div>
+          <div className="hidden sm:flex gap-2 overflow-x-auto pb-3 mb-6 scrollbar-none">
             {STEPS.map((item, index) => {
               const active = index === step;
               const complete = index < step;
@@ -831,8 +839,8 @@ export default function CreateEventPage() {
       )}
 
       {/* Fixed Bottom Wizard Navigation */}
-      <div className="fixed bottom-0 left-0 lg:left-[260px] right-0 z-30 border-t border-[var(--line-soft)] bg-[hsl(0_0%_96%_/_0.95)] backdrop-blur-xl">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div className="fixed bottom-0 left-0 md:left-[260px] right-0 z-30 border-t border-[var(--line-soft)] bg-[hsl(0_0%_96%_/_0.95)] backdrop-blur-xl">
+        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
           <span className="hidden sm:inline text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
             Step {step + 1} of {STEPS.length} · {STEPS[step]?.label}
             {draftSaveSuccess && step <= 4 && (
@@ -841,7 +849,7 @@ export default function CreateEventPage() {
               </span>
             )}
           </span>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
             {/* Save Changes button for steps 0–4 (Basic Info, Details, Agenda, Speakers, Sponsors) */}
             {step <= 4 && (
               <button
@@ -1057,7 +1065,7 @@ function BasicInfo({
           <input
             value={draft.title}
             onChange={(e) => updateDraft("title", e.target.value)}
-            placeholder="e.g. Parul National Tech Conclave 2026"
+            placeholder="e.g. AWS Community Day 2026"
             className={inputClass}
             style={inputStyle}
           />
@@ -1066,7 +1074,7 @@ function BasicInfo({
           <textarea
             value={draft.description}
             onChange={(e) => updateDraft("description", e.target.value)}
-            placeholder="Provide a compelling overview of what attendees can expect..."
+            placeholder="Enter a comprehensive summary of the event..."
             className={`${inputClass} resize-none`}
             style={inputStyle}
             rows={4}
@@ -1135,7 +1143,7 @@ function Details({ draft, updateDraft }: { draft: EventDraft; updateDraft: <K ex
           </Field>
         </div>
         <Field label="Venue (optional)">
-          <input value={draft.venue} onChange={(e) => updateDraft("venue", e.target.value)} placeholder="Main Auditorium, Central Campus" className={inputClass} style={inputStyle} />
+          <input value={draft.venue} onChange={(e) => updateDraft("venue", e.target.value)} placeholder="e.g. Seminar Hall 2, PET Building" className={inputClass} style={inputStyle} />
         </Field>
       </div>
     </div>

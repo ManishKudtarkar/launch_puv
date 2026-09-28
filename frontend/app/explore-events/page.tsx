@@ -124,7 +124,10 @@ export default function ExploreEventsPage() {
       const start = event.startTime || event.eventDate || event.endTime || new Date().toISOString();
       const end = event.endTime || event.startTime || event.eventDate || new Date().toISOString();
       const timeline = classifyEvent(start, end);
-      const matchTimeline = selectedTimeline === "all" || timeline === selectedTimeline;
+      const matchTimeline =
+        selectedTimeline === "all"
+          ? timeline === "ongoing" || timeline === "upcoming"
+          : timeline === selectedTimeline;
 
       return matchSearch && matchTimeline;
     });
@@ -236,10 +239,10 @@ export default function ExploreEventsPage() {
             </div>
 
             {[
-              { key: "all", label: "All Events" },
+              { key: "all",      label: "All Events" },
+              { key: "ongoing",  label: "Ongoing" },
               { key: "upcoming", label: "Upcoming" },
-              { key: "ongoing", label: "Ongoing" },
-              { key: "past", label: "Past" },
+              { key: "past",     label: "Past" },
             ].map((item) => (
               <button
                 key={item.key}

@@ -165,7 +165,7 @@ export default function StudentDashboard() {
 
         {/* Right — 2x2 stat grid + browse button */}
         <div className="lg:pr-[12%]">
-          <div className="grid grid-cols-2 gap-2.5 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2">
             {stats.map((stat) => (
               <Squircle
                 key={stat.label}
@@ -242,7 +242,7 @@ export default function StudentDashboard() {
               <h2 className="mt-1 text-[1rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)]">Create and manage your events</h2>
               <p className="mt-1 text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Your event-admin tools are available from this same dashboard.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row w-full gap-2">
               <Link href="/admin/events" className="inline-flex items-center gap-2 rounded-[12px] border border-[var(--line)] bg-[hsl(0_0%_100%_/_0.5)] px-4 py-2.5 text-[0.74rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-ui)]">
                 <ClipboardList className="w-3.5 h-3.5 text-[var(--accent)]" /> My Events
               </Link>

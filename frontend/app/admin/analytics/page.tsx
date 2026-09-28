@@ -169,7 +169,7 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* ── Stat cards — same pattern as /admin/organizations ──────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
           { label: "Registered",   value: selected?.totalRegistered ?? 0, Icon: Users,        color: "var(--accent)" },
           { label: "Attended",     value: selected?.totalAttended   ?? 0, Icon: CheckCircle2, color: "hsl(142 50% 40%)" },
@@ -347,7 +347,8 @@ export default function AdminAnalyticsPage() {
           </div>
 
           {/* Attendee rows — same OrgRow card style ───────────────────────── */}
-          <div className="space-y-3">
+          <div className="w-full overflow-x-auto">
+          <div className="space-y-3 min-w-[300px]">
             {activeTab === "present" ? (
               selected.presentAttendees.length === 0 ? (
                 <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
@@ -487,6 +488,7 @@ export default function AdminAnalyticsPage() {
                 ))
               )
             )}
+          </div>
           </div>
         </div>
       )}
