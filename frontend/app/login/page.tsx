@@ -8,6 +8,7 @@ import { backendRoleToUiRole, useAuthStore } from "@/store/auth-store";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useDemoStore } from "@/store/demo-store";
 import { useState, useEffect } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const loginAsApiUser = useDemoStore((s) => s.loginAsApiUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -123,18 +125,26 @@ export default function LoginPage() {
             <label htmlFor="password" className="block text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
               Password
             </label>
-            <Squircle cornerRadius={12} cornerSmoothing={1} className="w-full">
+            <Squircle cornerRadius={12} cornerSmoothing={1} className="relative w-full">
               <input
                 id="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 required
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Min. 8 characters"
-                className="w-full h-11 px-4 text-[0.85rem] bg-[hsl(0_0%_96%_/_0.55)] border border-[hsl(0_0%_85%_/_0.5)] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none transition-all duration-200 focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_hsl(25_65%_45%_/_0.1)]"
+                className="w-full h-11 pl-4 pr-10 text-[0.85rem] bg-[hsl(0_0%_96%_/_0.55)] border border-[hsl(0_0%_85%_/_0.5)] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none transition-all duration-200 focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_hsl(25_65%_45%_/_0.1)]"
                 style={{ borderRadius: "inherit" }}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--col-secondary)] hover:text-[var(--col-primary)] transition-colors duration-200"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </Squircle>
           </div>
 

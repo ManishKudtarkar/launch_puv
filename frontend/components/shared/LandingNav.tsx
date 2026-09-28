@@ -34,7 +34,7 @@ export default function LandingNav() {
   return (
     <>
       {/* ── Navbar ───────────────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-[200] w-full max-w-full overflow-x-hidden border-b border-[hsl(25_18%_75%_/_0.42)] bg-[hsl(35_20%_96%_/_0.78)] backdrop-blur-xl">
+      <nav className="sticky top-0 z-[500] w-full max-w-full border-b border-[hsl(25_18%_75%_/_0.42)] bg-[hsl(35_20%_96%_/_0.78)] backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4">
 
           {/* Logo */}

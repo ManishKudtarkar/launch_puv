@@ -100,8 +100,9 @@ export default function SuperAdminEventsPage() {
                     </Squircle>
                     <div className="flex-1 min-w-0">
                       <p className="text-[0.9rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">{event.title}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        {event.venue && <span className="text-[0.7rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] flex items-center gap-1"><MapPin className="w-3 h-3" />{event.venue}</span>}
+                      <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                        <span className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] flex items-center gap-1.5 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />{(event.createdBy as any)?.fullName || "Unknown Admin"}</span>
+                        {event.venue && <span className="text-[0.7rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)] flex items-center gap-1"><MapPin className="w-3 h-3" />{event.venue}</span>}
                         <span className="text-[0.7rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] flex items-center gap-1"><CalendarDays className="w-3 h-3" />{fmtDate(event.eventDate)}</span>
                       </div>
                     </div>

@@ -102,7 +102,7 @@ export default function ExploreEventsPage() {
   const publishedEvents = useMemo(() => {
     return events.filter((item) => {
       const st = normalizeEventStatus(item.status);
-      return st === "PUBLISHED" || st === "APPROVED" || st === "DRAFT" || st === "PENDING_APPROVAL" || !item.status;
+      return st === "PUBLISHED" || !item.status; // Fallback for legacy events without status
     });
   }, [events]);
 

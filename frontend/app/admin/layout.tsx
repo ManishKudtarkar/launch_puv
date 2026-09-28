@@ -6,7 +6,7 @@ import { Squircle } from "@squircle-js/react";
 import { useDemoStore } from "@/store/demo-store";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthGuard } from "@/components/shared/auth-guard";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -42,6 +42,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Keep main content flush beside sidebar on resize and sidebar toggle
+  useEffect(() => {
+    const apply = () => {
+      const el = mainRef.current;
+      if (!el) return;
+      if (window.innerWidth >= 768) {
+        el.style.marginLeft = `${sidebarWidth}px`;
+        el.style.width = `calc(100% - ${sidebarWidth}px)`;
+      } else {
+        el.style.marginLeft = "0px";
+        el.style.width = "100%";
+      }
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [sidebarWidth]);
 
   const user = {
     name: authUser?.fullName || demoUser?.name || "Admin",
@@ -361,20 +380,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main content — no margin on mobile, sidebar offset on md+ */}
       <main
+        ref={mainRef}
         className="relative z-[3] min-h-screen pt-14 md:pt-8 pb-20 px-4 sm:px-6 lg:px-8 min-w-0 max-w-full overflow-x-hidden"
-        style={{ marginLeft: "0px", width: "100%" }}
-        ref={(el) => {
-          if (!el) return;
-          const apply = () => {
-            if (window.innerWidth >= 768) {
-              el.style.marginLeft = `${sidebarWidth}px`;
-              el.style.width = `calc(100% - ${sidebarWidth}px)`;
-            } else {
-              el.style.marginLeft = "0px";
-              el.style.width = "100%";
-            }
-          };
-          apply();
+        style={{
+          marginLeft: 0,
+          width: "100%",
+          transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
         }}
       >
         <div className="max-w-[1200px] mx-auto w-full min-w-0">

@@ -153,6 +153,7 @@ export default function CreateEventPage() {
   const initialClubId = searchParams.get("clubId") || undefined;
 
   const [currentEventId, setCurrentEventId] = useState<string | null>(eventIdParam);
+  const [eventStatus, setEventStatus] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<EventDraft>({
     ...INITIAL_DRAFT,
@@ -249,6 +250,8 @@ export default function CreateEventPage() {
       const eventData = previewData?.event || previewData;
 
       if (eventData) {
+        // Track the existing event status so we can use resubmit vs submit appropriately
+        setEventStatus(eventData.status || null);
         setDraft((prev) => ({
           ...prev,
           title: eventData.title || "",
@@ -384,11 +387,11 @@ export default function CreateEventPage() {
         for (const speaker of draft.speakers) {
           const speakerPayload = {
             name: speaker.name || "Speaker",
-            designation: speaker.designation,
-            organization: speaker.organization,
-            bio: speaker.bio,
-            photoUrl: speaker.photoUrl,
-            linkedinUrl: speaker.linkedinUrl,
+            designation: speaker.designation || undefined,
+            organization: speaker.organization || undefined,
+            bio: speaker.bio || undefined,
+            photoUrl: speaker.photoUrl || undefined,
+            linkedinUrl: speaker.linkedinUrl || undefined,
             displayOrder: speaker.displayOrder ?? 1,
           };
           if (speaker.id) {
@@ -410,10 +413,10 @@ export default function CreateEventPage() {
         for (const sponsor of draft.sponsors) {
           const sponsorPayload = {
             name: sponsor.name || "Sponsor",
-            logoUrl: sponsor.logoUrl,
-            description: sponsor.description,
-            websiteUrl: sponsor.websiteUrl,
-            sponsorshipLevel: sponsor.sponsorshipLevel,
+            logoUrl: sponsor.logoUrl || undefined,
+            description: sponsor.description || undefined,
+            websiteUrl: sponsor.websiteUrl || undefined,
+            sponsorshipLevel: sponsor.sponsorshipLevel || undefined,
             displayOrder: sponsor.displayOrder ?? 1,
           };
           if (sponsor.id) {
@@ -600,11 +603,11 @@ export default function CreateEventPage() {
             try {
               await api.events.speakers.create(activeEventId, {
                 name: speaker.name,
-                designation: speaker.designation,
-                organization: speaker.organization,
-                bio: speaker.bio,
-                photoUrl: speaker.photoUrl,
-                linkedinUrl: speaker.linkedinUrl,
+                designation: speaker.designation || undefined,
+                organization: speaker.organization || undefined,
+                bio: speaker.bio || undefined,
+                photoUrl: speaker.photoUrl || undefined,
+                linkedinUrl: speaker.linkedinUrl || undefined,
                 displayOrder: speaker.displayOrder ?? 1,
               });
             } catch { /* non-blocking */ }
@@ -617,21 +620,25 @@ export default function CreateEventPage() {
             try {
               await api.events.sponsors.create(activeEventId, {
                 name: sponsor.name,
-                logoUrl: sponsor.logoUrl,
-                description: sponsor.description,
-                websiteUrl: sponsor.websiteUrl,
-                sponsorshipLevel: sponsor.sponsorshipLevel,
+                logoUrl: sponsor.logoUrl || undefined,
+                description: sponsor.description || undefined,
+                websiteUrl: sponsor.websiteUrl || undefined,
+                sponsorshipLevel: sponsor.sponsorshipLevel || undefined,
                 displayOrder: sponsor.displayOrder ?? 1,
               });
             } catch { /* non-blocking */ }
           }
         }
 
-        // Submit for approval
+        // Submit or Resubmit for approval depending on current event status
         try {
-          await api.events.submit(activeEventId);
+          if (eventStatus === "CHANGES_REQUESTED") {
+            await api.events.resubmit(activeEventId);
+          } else {
+            await api.events.submit(activeEventId);
+          }
         } catch {
-          // If already submitted or publish direct
+          // Non-blocking: may already be submitted
         }
       }
 
@@ -832,7 +839,7 @@ export default function CreateEventPage() {
                 />
               )}
               {step === 7 && <Preview draft={draft} cover={cover} />}
-              {step === 8 && <PublishReview draft={draft} cover={cover} onPublish={publish} publishing={publishing} />}
+              {step === 8 && <PublishReview draft={draft} cover={cover} onPublish={publish} publishing={publishing} eventStatus={eventStatus} />}
             </Squircle>
           </div>
         </>
@@ -936,23 +943,23 @@ export default function CreateEventPage() {
       </div>
 
       {publishError && (
-        <div className="fixed bottom-20 left-5 z-40 max-w-sm px-4 py-3 rounded-[12px] bg-[var(--danger-bg)] text-[var(--danger)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl border border-[var(--danger)]/20">
+        <div className="fixed bottom-20 left-5 z-[300] max-w-sm px-4 py-3 rounded-[12px] bg-[var(--danger-bg)] text-[var(--danger)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl border border-[var(--danger)]/20">
           {publishError}
         </div>
       )}
       {draftSaveSuccess && (
-        <div className="fixed bottom-20 left-5 z-40 max-w-sm px-4 py-3 rounded-[12px] bg-[hsl(142_50%_45%_/_0.12)] border border-[hsl(142_50%_45%_/_0.3)] text-[hsl(142_60%_30%)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl flex items-center gap-2">
+        <div className="fixed bottom-20 left-5 z-[300] max-w-sm px-4 py-3 rounded-[12px] bg-[hsl(142_50%_45%_/_0.12)] border border-[hsl(142_50%_45%_/_0.3)] text-[hsl(142_60%_30%)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
           {draftSaveSuccess}
         </div>
       )}
       {draftSaveError && (
-        <div className="fixed bottom-20 left-5 z-40 max-w-sm px-4 py-3 rounded-[12px] bg-[var(--danger-bg)] text-[var(--danger)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl border border-[var(--danger)]/20">
+        <div className="fixed bottom-20 left-5 z-[300] max-w-sm px-4 py-3 rounded-[12px] bg-[var(--danger-bg)] text-[var(--danger)] text-[0.74rem] font-[family-name:var(--font-ui)] shadow-xl border border-[var(--danger)]/20">
           {draftSaveError}
         </div>
       )}
       {saved && (
-        <div className="fixed bottom-20 right-5 z-40 px-5 py-3.5 rounded-[14px] bg-[var(--col-primary)] text-[var(--bg)] text-[0.76rem] font-[family-name:var(--font-ui)] shadow-2xl flex items-center gap-3">
+        <div className="fixed bottom-20 right-5 z-[300] px-5 py-3.5 rounded-[14px] bg-[var(--col-primary)] text-[var(--bg)] text-[0.76rem] font-[family-name:var(--font-ui)] shadow-2xl flex items-center gap-3">
           <span>Event saved and submitted successfully!</span>
           <button
             type="button"
@@ -1065,7 +1072,7 @@ function BasicInfo({
           <input
             value={draft.title}
             onChange={(e) => updateDraft("title", e.target.value)}
-            placeholder="e.g. AWS Community Day 2026"
+            placeholder="Enter event title"
             className={inputClass}
             style={inputStyle}
           />
@@ -1074,7 +1081,7 @@ function BasicInfo({
           <textarea
             value={draft.description}
             onChange={(e) => updateDraft("description", e.target.value)}
-            placeholder="Enter a comprehensive summary of the event..."
+            placeholder="Enter a detailed event description"
             className={`${inputClass} resize-none`}
             style={inputStyle}
             rows={4}
@@ -1089,7 +1096,7 @@ function BasicInfo({
                 updateDraft("bannerUrl", e.target.value);
                 setCover(e.target.value || null);
               }}
-              placeholder="Paste banner image URL (https://...)"
+              placeholder="Enter banner image URL (https://...)"
               className={inputClass}
               style={inputStyle}
             />
@@ -1136,14 +1143,26 @@ function Details({ draft, updateDraft }: { draft: EventDraft; updateDraft: <K ex
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Start time (optional)">
-            <input type="datetime-local" value={draft.startTime} onChange={(e) => updateDraft("startTime", e.target.value)} className={inputClass} style={inputStyle} />
+            <input
+              type="time"
+              value={draft.startTime ? draft.startTime.slice(11, 16) : ""}
+              onChange={(e) => updateDraft("startTime", e.target.value ? `${draft.eventDate}T${e.target.value}` : "")}
+              className={inputClass}
+              style={inputStyle}
+            />
           </Field>
           <Field label="End time (optional)">
-            <input type="datetime-local" value={draft.endTime} onChange={(e) => updateDraft("endTime", e.target.value)} className={inputClass} style={inputStyle} />
+            <input
+              type="time"
+              value={draft.endTime ? draft.endTime.slice(11, 16) : ""}
+              onChange={(e) => updateDraft("endTime", e.target.value ? `${draft.eventDate}T${e.target.value}` : "")}
+              className={inputClass}
+              style={inputStyle}
+            />
           </Field>
         </div>
         <Field label="Venue (optional)">
-          <input value={draft.venue} onChange={(e) => updateDraft("venue", e.target.value)} placeholder="e.g. Seminar Hall 2, PET Building" className={inputClass} style={inputStyle} />
+          <input value={draft.venue} onChange={(e) => updateDraft("venue", e.target.value)} placeholder="Enter venue or location" className={inputClass} style={inputStyle} />
         </Field>
       </div>
     </div>
@@ -1171,7 +1190,7 @@ function Agenda({
               <input
                 value={item.title}
                 onChange={(e) => updateAgenda(index, "title", e.target.value)}
-                placeholder="Session title (e.g. Keynote Speech)"
+                placeholder="Enter session title"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1180,7 +1199,7 @@ function Agenda({
                 min="1"
                 value={item.displayOrder}
                 onChange={(e) => updateAgenda(index, "displayOrder", Number(e.target.value))}
-                placeholder="Order"
+                placeholder="Display order"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1211,7 +1230,7 @@ function Agenda({
             <textarea
               value={item.description || ""}
               onChange={(e) => updateAgenda(index, "description", e.target.value)}
-              placeholder="Session overview / topics covered"
+              placeholder="Enter session overview or topics covered"
               className={`${inputClass} resize-none`}
               style={inputStyle}
               rows={2}
@@ -1249,24 +1268,23 @@ function Speakers({
           <div key={index} className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <input
-                required
                 value={speaker.name}
                 onChange={(e) => updateSpeaker(index, "name", e.target.value)}
-                placeholder="Speaker Name *"
+                placeholder="Enter speaker full name"
                 className={inputClass}
                 style={inputStyle}
               />
               <input
                 value={speaker.designation || ""}
                 onChange={(e) => updateSpeaker(index, "designation", e.target.value)}
-                placeholder="Designation (e.g. Head of AI)"
+                placeholder="Enter speaker designation"
                 className={inputClass}
                 style={inputStyle}
               />
               <input
                 value={speaker.organization || ""}
                 onChange={(e) => updateSpeaker(index, "organization", e.target.value)}
-                placeholder="Organization / Company"
+                placeholder="Enter organization or company"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1275,7 +1293,7 @@ function Speakers({
                 min="1"
                 value={speaker.displayOrder || index + 1}
                 onChange={(e) => updateSpeaker(index, "displayOrder", Number(e.target.value))}
-                placeholder="Display order"
+                placeholder="Enter display order"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1283,7 +1301,7 @@ function Speakers({
                 type="url"
                 value={speaker.photoUrl || ""}
                 onChange={(e) => updateSpeaker(index, "photoUrl", e.target.value)}
-                placeholder="Photo URL"
+                placeholder="Enter speaker photo URL"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1291,7 +1309,7 @@ function Speakers({
                 type="url"
                 value={speaker.linkedinUrl || ""}
                 onChange={(e) => updateSpeaker(index, "linkedinUrl", e.target.value)}
-                placeholder="LinkedIn Profile URL"
+                placeholder="Enter LinkedIn profile URL"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1299,7 +1317,7 @@ function Speakers({
             <textarea
               value={speaker.bio || ""}
               onChange={(e) => updateSpeaker(index, "bio", e.target.value)}
-              placeholder="Short biography"
+              placeholder="Enter speaker biography"
               className={`${inputClass} resize-none`}
               style={inputStyle}
               rows={2}
@@ -1346,17 +1364,16 @@ function Sponsors({
           <div key={index} className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <input
-                required
                 value={sponsor.name}
                 onChange={(e) => updateSponsor(index, "name", e.target.value)}
-                placeholder="Partner / Sponsor Name *"
+                placeholder="Enter sponsor company name"
                 className={inputClass}
                 style={inputStyle}
               />
               <input
                 value={sponsor.sponsorshipLevel || ""}
                 onChange={(e) => updateSponsor(index, "sponsorshipLevel", e.target.value)}
-                placeholder="Tier (e.g. Title, Gold, Powered By)"
+                placeholder="Enter sponsorship tier"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1364,7 +1381,7 @@ function Sponsors({
                 type="url"
                 value={sponsor.logoUrl || ""}
                 onChange={(e) => updateSponsor(index, "logoUrl", e.target.value)}
-                placeholder="Logo URL"
+                placeholder="Enter sponsor logo URL"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1372,7 +1389,7 @@ function Sponsors({
                 type="url"
                 value={sponsor.websiteUrl || ""}
                 onChange={(e) => updateSponsor(index, "websiteUrl", e.target.value)}
-                placeholder="Website URL"
+                placeholder="Enter sponsor website URL"
                 className={inputClass}
                 style={inputStyle}
               />
@@ -1380,7 +1397,7 @@ function Sponsors({
             <textarea
               value={sponsor.description || ""}
               onChange={(e) => updateSponsor(index, "description", e.target.value)}
-              placeholder="Partner description"
+              placeholder="Enter sponsor or partner description"
               className={`${inputClass} resize-none`}
               style={inputStyle}
               rows={2}
@@ -2087,12 +2104,15 @@ function PublishReview({
   cover,
   onPublish,
   publishing,
+  eventStatus,
 }: {
   draft: EventDraft;
   cover: string | null;
   onPublish: () => void;
   publishing: boolean;
+  eventStatus: string | null;
 }) {
+  const isResubmit = eventStatus === "CHANGES_REQUESTED";
   const [showPreview, setShowPreview] = useState(false);
 
   return (
@@ -2309,13 +2329,24 @@ function PublishReview({
           </div>
         </div>
 
+        {isResubmit && (
+          <div className="p-4 rounded-[14px] border border-[hsl(270_50%_55%_/_0.3)] bg-[hsl(270_60%_65%_/_0.07)]">
+            <p className="text-[0.76rem] font-semibold text-[hsl(270_50%_40%)] font-[family-name:var(--font-display)] mb-1">Resubmitting After Changes Requested</p>
+            <p className="text-[0.72rem] text-[hsl(270_45%_45%)] font-[family-name:var(--font-ui)] leading-relaxed">
+              You are resubmitting this event after addressing Super Admin feedback. Clicking the button below will send it back for review.
+            </p>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onPublish}
           disabled={publishing}
           className="w-full py-3.5 rounded-[14px] bg-[var(--accent)] text-white text-[0.84rem] font-semibold font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer"
         >
-          {publishing ? "Submitting Event..." : "Submit Event For Approval"}
+          {publishing
+            ? (isResubmit ? "Resubmitting..." : "Submitting Event...")
+            : (isResubmit ? "Resubmit for Approval" : "Submit Event For Approval")}
           <Check className="w-4 h-4" />
         </button>
       </div>

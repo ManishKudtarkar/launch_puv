@@ -1,11 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Squircle } from "@squircle-js/react";
-import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
-import { ROLE_HOME } from "@/constants/navigation";
+import { useAuthStore } from "@/store/auth-store";
 import LandingNav from "@/components/shared/LandingNav";
+import { api, type Event as ApiEvent } from "@/lib/api-client";
+
+function eventUrlFor(event: ApiEvent) {
+    if (event.slug && event.slug.trim()) return `/events/${event.slug}`;
+    if (event.id) return `/events/${event.id}`;
+    const title = (event.title || "event").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return `/events/${title}`;
+}
+
+function formatEventDate(dateString?: string) {
+    if (!dateString) return "";
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 const platformFeatures = [
     { title: "Campus network", detail: "Connect clubs, students, faculty, and campus teams in one shared university space." },
@@ -28,8 +43,46 @@ export default function LandingPage() {
     const isLoggedIn = initialized && !!user && !!accessToken;
     const dashboardHref = "/student";
 
+    const [nextEvent, setNextEvent] = useState<ApiEvent | null>(null);
+    const [loadingEvent, setLoadingEvent] = useState(true);
+
+    useEffect(() => {
+        let active = true;
+        api.events.list()
+            .then((events) => {
+                if (!active) return;
+                const now = new Date().getTime();
+                // Filter upcoming published events, sorted by nearest eventDate
+                const upcoming = events
+                    .filter((e) => {
+                        const status = (e.status || "").toUpperCase();
+                        const isPublished = status === "PUBLISHED" || !status;
+                        const evtTime = new Date(e.eventDate).getTime();
+                        return isPublished && (isNaN(evtTime) || evtTime >= now - 86400000);
+                    })
+                    .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
+
+                setNextEvent(upcoming.length > 0 ? upcoming[0] : (events.length > 0 ? events[0] : null));
+            })
+            .catch(() => {
+                if (!active) return;
+                setNextEvent(null);
+            })
+            .finally(() => {
+                if (active) setLoadingEvent(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const seatsLeft = nextEvent && typeof nextEvent.capacity === "number"
+        ? Math.max(0, nextEvent.capacity - (nextEvent.registered || 0))
+        : null;
+
     return (
-        <div className="min-h-screen relative overflow-x-hidden">
+        <div className="min-h-screen relative">
             <div className="blob-container">
                 <div className="blob blob-1" />
                 <div className="blob blob-2" />
@@ -38,9 +91,9 @@ export default function LandingPage() {
 
             <LandingNav />
 
-            <main className="relative w-full max-w-full overflow-x-hidden">
+            <main className="relative w-full max-w-full">
                 {/* Hero Section */}
-                <section className="section-transparent py-10 lg:py-16 w-full max-w-full overflow-x-hidden">
+                <section className="section-transparent py-10 lg:py-16 w-full max-w-full">
                     <div className="max-w-[1280px] mx-auto px-6 md:px-12 w-full">
 
                         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 items-center">
@@ -139,64 +192,90 @@ export default function LandingPage() {
                                 </Squircle>
 
                                 {/* Event Ticket Card */}
-                                <Squircle
-                                    cornerRadius={22}
-                                    cornerSmoothing={1}
-                                    className="p-5"
-                                    style={{
-                                        background: "hsl(0 0% 96% / 0.72)",
-                                        backdropFilter: "blur(24px) saturate(1.4)",
-                                        WebkitBackdropFilter: "blur(24px) saturate(1.4)",
-                                        border: "1px solid hsl(25 65% 45% / 0.22)",
-                                        boxShadow: "0 2px 16px var(--shadow), inset 0 1px 0 var(--glow)",
-                                    }}
-                                >
-                                    {/* Ticket header */}
-                                    <div className="flex items-center justify-between mb-3">
-                                        <span className="inline-flex items-center gap-1.5 text-[0.6rem] font-bold uppercase tracking-[0.16em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
-                                            Next Big Event
-                                        </span>
-                                        <span
-                                            className="inline-flex items-center gap-1 text-[0.58rem] font-semibold px-2.5 py-1 rounded-full font-[family-name:var(--font-mono)]"
-                                            style={{ background: "hsl(142 50% 45% / 0.1)", color: "hsl(142 50% 35%)", border: "1px solid hsl(142 50% 45% / 0.2)" }}
-                                        >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-[hsl(142_50%_45%)]" />
-                                            Open
-                                        </span>
-                                    </div>
-
-                                    {/* Event name */}
-                                    <p className="text-[0.92rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] leading-snug mb-3">
-                                        AWS Community Day 2026
-                                    </p>
-
-                                    {/* Meta row */}
-                                    <div className="flex flex-col gap-1.5 mb-4">
-                                        <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                            Oct 1, 2026
-                                        </span>
-                                        <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                            Seminar Hall 2
-                                        </span>
-                                        <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                            <span>🟢</span> 120 Seats Left
-                                        </span>
-                                    </div>
-
-                                    {/* Dashed separator */}
-                                    <div
-                                        className="h-px mb-4"
-                                        style={{ backgroundImage: "repeating-linear-gradient(90deg, hsl(0 0% 75% / 0.5) 0px, hsl(0 0% 75% / 0.5) 5px, transparent 5px, transparent 10px)" }}
-                                    />
-
-                                    {/* CTA */}
-                                    <Link
-                                        href="/explore-events"
-                                        className="w-full inline-flex items-center justify-center gap-2 text-[0.76rem] font-semibold py-2.5 rounded-[12px] bg-[var(--col-primary)] text-[var(--bg)] transition-all duration-200 hover:opacity-85 active:scale-95 font-[family-name:var(--font-display)]"
+                                {loadingEvent ? (
+                                    <Squircle
+                                        cornerRadius={22}
+                                        cornerSmoothing={1}
+                                        className="p-5 min-h-[160px] flex items-center justify-center text-xs text-[var(--col-secondary)]"
+                                        style={{
+                                            background: "hsl(0 0% 96% / 0.72)",
+                                            backdropFilter: "blur(24px) saturate(1.4)",
+                                            WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+                                            border: "1px solid hsl(25 65% 45% / 0.22)",
+                                            boxShadow: "0 2px 16px var(--shadow), inset 0 1px 0 var(--glow)",
+                                        }}
                                     >
-                                        Register Now →
-                                    </Link>
-                                </Squircle>
+                                        Loading next event...
+                                    </Squircle>
+                                ) : nextEvent ? (
+                                    <Squircle
+                                        cornerRadius={22}
+                                        cornerSmoothing={1}
+                                        className="p-5"
+                                        style={{
+                                            background: "hsl(0 0% 96% / 0.72)",
+                                            backdropFilter: "blur(24px) saturate(1.4)",
+                                            WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+                                            border: "1px solid hsl(25 65% 45% / 0.22)",
+                                            boxShadow: "0 2px 16px var(--shadow), inset 0 1px 0 var(--glow)",
+                                        }}
+                                    >
+                                        {/* Ticket header */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="inline-flex items-center gap-1.5 text-[0.6rem] font-bold uppercase tracking-[0.16em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
+                                                Next Big Event
+                                            </span>
+                                            <span
+                                                className="inline-flex items-center gap-1 text-[0.58rem] font-semibold px-2.5 py-1 rounded-full font-[family-name:var(--font-mono)]"
+                                                style={{ background: "hsl(142 50% 45% / 0.1)", color: "hsl(142 50% 35%)", border: "1px solid hsl(142 50% 45% / 0.2)" }}
+                                            >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(142_50%_45%)]" />
+                                                Open
+                                            </span>
+                                        </div>
+
+                                        {/* Event name */}
+                                        <p className="text-[0.92rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] leading-snug mb-3">
+                                            {nextEvent.title}
+                                        </p>
+
+                                        {/* Meta row */}
+                                        <div className="flex flex-col gap-1.5 mb-4">
+                                            {nextEvent.eventDate && (
+                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                                                    {formatEventDate(nextEvent.eventDate)}
+                                                </span>
+                                            )}
+                                            {nextEvent.venue && (
+                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                                                    {nextEvent.venue}
+                                                </span>
+                                            )}
+                                            {seatsLeft !== null && (
+                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                                                    {seatsLeft} Seats Left
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Dashed separator */}
+                                        <div
+                                            className="h-px mb-4"
+                                            style={{ backgroundImage: "repeating-linear-gradient(90deg, hsl(0 0% 75% / 0.5) 0px, hsl(0 0% 75% / 0.5) 5px, transparent 5px, transparent 10px)" }}
+                                        />
+
+                                        {/* CTA */}
+                                        <Link
+                                            href={eventUrlFor(nextEvent)}
+                                            className="w-full inline-flex items-center justify-center gap-2 text-[0.76rem] font-semibold py-2.5 rounded-[12px] bg-[var(--col-primary)] text-[var(--bg)] transition-all duration-200 hover:opacity-85 active:scale-95 font-[family-name:var(--font-display)]"
+                                        >
+                                            Register Now →
+                                        </Link>
+                                    </Squircle>
+                                ) : (
+                                    /* Empty space when no event data exists */
+                                    <div className="min-h-[100px]" />
+                                )}
                             </motion.div>
                         </div>
                     </div>
