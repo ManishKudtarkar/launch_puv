@@ -152,14 +152,14 @@ export default function LandingNav() {
 
       {/* ── Mobile slide-over panel ──────────────────────────────────────── */}
       <div
-        className="fixed top-0 right-0 bottom-0 z-[310] w-[280px] max-w-[85vw] flex flex-col md:hidden transition-transform duration-300"
+        className="fixed top-0 left-0 bottom-0 z-[310] w-[280px] max-w-[85vw] flex flex-col md:hidden transition-transform duration-300"
         style={{
-          transform: drawerOpen ? "translateX(0)" : "translateX(100%)",
+          transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
           background: "hsl(35 20% 96% / 0.96)",
           backdropFilter: "blur(32px) saturate(1.6)",
           WebkitBackdropFilter: "blur(32px) saturate(1.6)",
-          borderLeft: "1px solid hsl(25 18% 75% / 0.4)",
-          boxShadow: "-4px 0 32px hsl(0 0% 0% / 0.1)",
+          borderRight: "1px solid hsl(25 18% 75% / 0.4)",
+          boxShadow: "4px 0 32px hsl(0 0% 0% / 0.1)",
         }}
       >
         {/* Drawer header */}
