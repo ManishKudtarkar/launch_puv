@@ -211,11 +211,11 @@ export default function AdminEventsPage() {
                   )}
                 </div>
                 </div>
-                {event.reviewNotes && (event.status === "CHANGES_REQUESTED" || event.status === "REJECTED") && (
+                {typeof event.reviewNotes === "string" && event.reviewNotes && (event.status === "CHANGES_REQUESTED" || event.status === "REJECTED") && (
                   <div className="px-6 pb-4">
                     <div className="bg-[hsl(0_0%_96%)] border-l-2 border-[var(--danger)] px-4 py-2.5 rounded-r-[8px] text-[0.76rem] font-[family-name:var(--font-ui)]">
                       <span className="font-semibold text-[var(--col-primary)] block mb-1 font-[family-name:var(--font-display)]">Remarks / Feedback:</span>
-                      <span className="text-[var(--col-secondary)]">{event.reviewNotes as string}</span>
+                      <span className="text-[var(--col-secondary)]">{event.reviewNotes}</span>
                     </div>
                   </div>
                 )}
