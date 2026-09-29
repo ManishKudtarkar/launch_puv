@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -8,9 +9,13 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['log', 'error', 'warn', 'debug', 'verbose'],
   });
+
+  // Behind Cloudflare + Render: trust the forwarding proxies so req.ip is the
+  // real client (used as the rate-limit fallback when cf-connecting-ip is absent).
+  app.set('trust proxy', true);
   app.setGlobalPrefix('api');
 
   app.use(
@@ -41,6 +46,8 @@ async function bootstrap() {
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
+    // Let the frontend read the wait time on 429 responses.
+    exposedHeaders: ['Retry-After'],
   });
 
   app.useGlobalPipes(

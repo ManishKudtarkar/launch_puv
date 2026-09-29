@@ -4,7 +4,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { ClientIpThrottlerGuard } from './common/guards/client-ip-throttler.guard';
 import { PrismaModule } from './database/prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -52,7 +53,8 @@ import { UpdatesModule } from './modules/updates/updates.module';
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      // Tracks the real client IP behind Cloudflare/Render (see guard for why).
+      useClass: ClientIpThrottlerGuard,
     },
   ],
 })

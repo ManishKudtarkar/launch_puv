@@ -23,7 +23,7 @@ export class EmailService implements OnModuleInit {
   private transporter?: Transporter;
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   // Verify SMTP connectivity once at startup so credential/port problems
   // (e.g. a bad Gmail App Password, wrong 465/587 setting) surface in the
@@ -439,3 +439,4 @@ export class EmailService implements OnModuleInit {
     }
   }
 }
+
