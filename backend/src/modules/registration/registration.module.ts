@@ -5,7 +5,9 @@ import { RegistrationFormController } from './registration-form.controller';
 import { RegistrationFormService } from './registration-form.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { RegistrationsController } from './registrations/registrations.controller';
+import { MyRegistrationsController } from './registrations/my-registrations.controller';
 import { RegistrationsService } from './registrations/registrations.service';
+import { TicketReleaseService } from './registrations/ticket-release.service';
 import { EmailModule } from '../email/email.module';
 
 @Module({
@@ -14,13 +16,15 @@ import { EmailModule } from '../email/email.module';
     RegistrationFieldsController,
     RegistrationFormController,
     RegistrationsController,
+    MyRegistrationsController,
   ],
   providers: [
     RegistrationFieldsService,
     RegistrationFormService,
     RegistrationsService,
+    TicketReleaseService,
     PrismaService,
   ],
   exports: [RegistrationFieldsService, RegistrationFormService],
 })
-export class RegistrationModule { }
+export class RegistrationModule {}

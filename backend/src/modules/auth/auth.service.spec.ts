@@ -1,4 +1,8 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../database/prisma/prisma.service';
@@ -519,7 +523,8 @@ describe('AuthService', () => {
         }),
       );
       expect(result).toEqual({
-        message: 'Password reset successfully. Please login again.',
+        success: true,
+        message: 'Password updated successfully.',
       });
     });
 
@@ -543,7 +548,7 @@ describe('AuthService', () => {
       await expect(
         authService.resetPassword('a'.repeat(64), 'NewPassword123!'),
       ).rejects.toThrow(
-        new UnauthorizedException('Invalid or expired password reset token'),
+        new BadRequestException('Invalid or expired password reset token.'),
       );
     });
   });

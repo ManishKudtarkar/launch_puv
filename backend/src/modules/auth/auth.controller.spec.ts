@@ -157,13 +157,15 @@ describe('AuthController', () => {
   });
 
   describe('resetPassword', () => {
-    it('should pass the token and new password to AuthService', async () => {
+    it('should pass the token, new password and email to AuthService', async () => {
       const dto = {
         token: 'a'.repeat(64),
+        email: 'test@paruluniversity.ac.in',
         newPassword: 'NewPassword123!',
       };
       const expectedResult = {
-        message: 'Password reset successfully. Please login again.',
+        success: true,
+        message: 'Password updated successfully.',
       };
       authServiceMock.resetPassword.mockResolvedValue(expectedResult);
 
@@ -172,6 +174,7 @@ describe('AuthController', () => {
       expect(authServiceMock.resetPassword).toHaveBeenCalledWith(
         dto.token,
         dto.newPassword,
+        dto.email,
       );
       expect(result).toEqual(expectedResult);
     });

@@ -187,6 +187,11 @@ model StudentRegistration {
   scanCount     Int       @default(0)
   scanHistory   Json?
 
+  // Tracks whether the QR ticket confirmation email has been dispatched.
+  // Null = not yet sent (locked / pending release). Set once the ticket email goes out,
+  // making the scheduled release sweep idempotent.
+  ticketEmailSentAt DateTime?
+
   registeredAt DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

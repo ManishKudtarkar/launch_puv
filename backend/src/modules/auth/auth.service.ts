@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   UnauthorizedException,
@@ -264,14 +265,24 @@ export class AuthService {
       }),
     ]);
 
-    await this.emailService.sendPasswordResetEmail(user.email, token);
+    try {
+      await this.emailService.sendPasswordResetEmail(user.email, token);
+    } catch (error) {
+      // Logged in EmailService; still return the generic message so SMTP
+      // failures can't be used to discover which emails are registered.
+      console.error('❌ Reset Email Error:', error);
+    }
 
     return { message };
   }
 
-  async resetPassword(token: string, newPassword: string) {
+  async resetPassword(token: string, newPassword: string, email?: string) {
     const tokenHash = this.hashPasswordResetToken(token);
     const now = new Date();
+    // 400 (not 401): the frontend treats 401 as "session expired" and would
+    // redirect to /login instead of showing this message.
+    const invalid = () =>
+      new BadRequestException('Invalid or expired password reset token.');
 
     await this.prisma.$transaction(async (tx) => {
       const resetToken = await tx.passwordResetToken.findUnique({
@@ -281,13 +292,20 @@ export class AuthService {
           userId: true,
           expiresAt: true,
           usedAt: true,
+          user: { select: { email: true } },
         },
       });
 
       if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= now) {
-        throw new UnauthorizedException(
-          'Invalid or expired password reset token',
-        );
+        throw invalid();
+      }
+
+      // If the link carried an email, it must belong to the token's owner.
+      if (
+        email &&
+        resetToken.user.email.toLowerCase() !== email.trim().toLowerCase()
+      ) {
+        throw invalid();
       }
 
       // Avoid expensive password hashing for invalid reset links. The token is
@@ -308,9 +326,7 @@ export class AuthService {
       });
 
       if (redemption.count !== 1) {
-        throw new UnauthorizedException(
-          'Invalid or expired password reset token',
-        );
+        throw invalid();
       }
 
       await tx.user.update({
@@ -335,7 +351,8 @@ export class AuthService {
     });
 
     return {
-      message: 'Password reset successfully. Please login again.',
+      success: true,
+      message: 'Password updated successfully.',
     };
   }
 

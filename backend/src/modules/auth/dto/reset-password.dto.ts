@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, Matches, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator';
 
 export class ResetPasswordDto {
   @IsString()
@@ -7,6 +14,11 @@ export class ResetPasswordDto {
     message: 'token must be a valid password reset token',
   })
   token!: string;
+
+  // Sent back from the reset link; when present it must match the token owner.
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @IsString()
   @IsNotEmpty()
