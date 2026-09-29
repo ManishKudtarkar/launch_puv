@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Squircle } from "@squircle-js/react";
 import LandingNav from "@/components/shared/LandingNav";
 import ScrollReveal from "@/components/shared/ScrollReveal";
+import HeroSection from "@/components/landing/HeroSection";
 import { api, type Event as ApiEvent } from "@/lib/api-client";
 import type { Club, Community } from "@/types";
 
@@ -14,40 +14,17 @@ function formatCount(n: number) {
     return `${n}`;
 }
 
-function eventUrlFor(event: ApiEvent) {
-    if (event.slug && event.slug.trim()) return `/events/${event.slug}`;
-    if (event.id) return `/events/${event.id}`;
-    const title = (event.title || "event").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    return `/events/${title}`;
-}
-
-function formatEventDate(dateString?: string) {
-    if (!dateString) return "";
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return dateString;
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
 const platformFeatures = [
     { title: "Campus network", detail: "Connect clubs, students, faculty, and campus teams in one shared university space." },
     { title: "Student access", detail: "Give learners one simple place to discover programs, communities, and opportunities." },
     { title: "Engagement records", detail: "Track participation, approvals, and campus activity through a clean digital workflow." },
 ];
 
-const campusPrograms = [
-    "Campus",
-    "Clubs",
-    "Access",
-    "Programs",
-];
-
 export default function LandingPage() {
     // Auth state is consumed inside LandingNav; page only needs user for personalisation
-    const [nextEvent, setNextEvent] = useState<ApiEvent | null>(null);
     const [events, setEvents] = useState<ApiEvent[]>([]);
     const [clubs, setClubs] = useState<Club[]>([]);
     const [communities, setCommunities] = useState<Community[]>([]);
-    const [loadingEvent, setLoadingEvent] = useState(true);
     const [loadingFeatured, setLoadingFeatured] = useState(true);
 
     useEffect(() => {
@@ -61,21 +38,9 @@ export default function LandingPage() {
             if (!active) return;
 
             // ── Events ──────────────────────────────────────────────
+            // Spotlight selection (featured / today / next) happens in HeroSection.
             if (eventsRes.status === "fulfilled") {
-                const allEvents = eventsRes.value;
-                setEvents(allEvents);
-                const now = new Date().getTime();
-                const upcoming = allEvents
-                    .filter((e) => {
-                        const status = (e.status || "").toUpperCase();
-                        const isPublished = status === "PUBLISHED" || !status;
-                        const evtTime = new Date(e.eventDate).getTime();
-                        return isPublished && (isNaN(evtTime) || evtTime >= now - 86400000);
-                    })
-                    .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime());
-                setNextEvent(upcoming.length > 0 ? upcoming[0] : (allEvents.length > 0 ? allEvents[0] : null));
-            } else {
-                setNextEvent(null);
+                setEvents(eventsRes.value);
             }
 
             // ── Clubs & Communities (active only) ───────────────────
@@ -86,7 +51,6 @@ export default function LandingPage() {
                 setCommunities(communitiesRes.value.filter((c) => c.status !== "INACTIVE"));
             }
 
-            setLoadingEvent(false);
             setLoadingFeatured(false);
         });
 
@@ -95,17 +59,13 @@ export default function LandingPage() {
         };
     }, []);
 
-    const seatsLeft = nextEvent && typeof nextEvent.capacity === "number"
-        ? Math.max(0, nextEvent.capacity - (nextEvent.registered || 0))
-        : null;
-
     // ── Live campus metrics computed from real API data ─────────────────
     const totalRegistrations = events.reduce((sum, e) => sum + (typeof e.registered === "number" ? e.registered : 0), 0);
     const liveMetrics = [
-        { value: formatCount(clubs.length), label: "Active Clubs", live: false },
-        { value: formatCount(totalRegistrations), label: "Registrations", live: true },
-        { value: formatCount(events.length), label: "Campus Events", live: false },
-        { value: formatCount(communities.length), label: "Communities", live: true },
+        { value: formatCount(clubs.length), label: "Active Clubs" },
+        { value: formatCount(totalRegistrations), label: "Registrations" },
+        { value: formatCount(events.length), label: "Campus Events" },
+        { value: formatCount(communities.length), label: "Communities" },
     ];
 
     // Top featured clubs & communities by follower count
@@ -114,7 +74,7 @@ export default function LandingPage() {
     const hasFeatured = featuredClubs.length > 0 || featuredCommunities.length > 0;
 
     return (
-        <div className="min-h-screen relative">
+        <div className="min-h-screen relative w-full max-w-full overflow-x-hidden">
             <div className="blob-container">
                 <div className="blob blob-1" />
                 <div className="blob blob-2" />
@@ -124,194 +84,8 @@ export default function LandingPage() {
             <LandingNav />
 
             <main className="relative w-full max-w-full">
-                {/* Hero Section */}
-                <section className="section-transparent py-10 lg:py-16 w-full max-w-full">
-                    <div className="max-w-[1280px] mx-auto px-6 md:px-12 w-full">
-
-                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-12 items-center">
-
-                            {/* B. Left — Hero copy + actions */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 12 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.4, delay: 0.08 }}
-                                className="max-w-[620px]"
-                            >
-                                {/* Eyebrow label */}
-                                <div className="flex items-center gap-[10px] text-[0.68rem] tracking-[0.22em] uppercase text-[var(--col-dim)] mb-6 font-[family-name:var(--font-mono)]">
-                                    <span className="inline-block w-5 h-px bg-[var(--accent)] flex-shrink-0" />
-                                    Unite. Participate.Lead.
-                                </div>
-
-                                {/* Headline */}
-                                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08] text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-6">
-                                    PUVerse Campus Platform
-                                    <br className="hidden sm:block" />
-                                    <span className="block text-[0.6em] font-semibold tracking-[-0.01em] text-[var(--col-secondary)] mt-2 leading-snug font-[family-name:var(--font-display)]">
-                                        The Single Hub for All Campus Events,
-                                        <br className="hidden sm:block" /> Clubs &amp; Student Communities.
-                                    </span>
-                                </h1>
-
-                                {/* Subtext */}
-                                <p className="text-[0.96rem] leading-[1.8] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] mb-8 max-w-[520px]">
-                                    The official university ecosystem for event discovery, instant QR passes, club chapters, and student forums.
-                                </p>
-
-                                {/* CTA Buttons */}
-                                <div className="flex flex-col sm:flex-row gap-3 mb-9">
-                                    <Link
-                                        href="/explore-events"
-                                        className="inline-flex items-center justify-center gap-2 text-[0.82rem] font-semibold px-6 py-[11px] rounded-full bg-[var(--col-primary)] text-[var(--bg)] transition-all duration-200 hover:opacity-85 active:scale-95 font-[family-name:var(--font-display)]"
-                                        style={{ boxShadow: "0 2px 12px var(--shadow-lg)" }}
-                                    >
-                                        Explore Events
-                                    </Link>
-                                    <Link
-                                        href="/student"
-                                        className="inline-flex items-center justify-center gap-2 text-[0.82rem] font-semibold px-6 py-[11px] rounded-full border border-[hsl(0_0%_78%_/_0.6)] bg-[hsl(0_0%_96%_/_0.55)] text-[var(--col-primary)] transition-all duration-200 hover:bg-[hsl(0_0%_96%_/_0.85)] active:scale-95 font-[family-name:var(--font-display)]"
-                                    >
-                                        Login to Dashboard
-                                    </Link>
-                                </div>
-
-                                {/* Tag pills */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-[480px]">
-                                    {campusPrograms.map((item) => (
-                                        <div key={item} className="rounded-full border border-[hsl(0_0%_85%_/_0.5)] px-4 py-2 text-center bg-[hsl(0_0%_96%_/_0.3)]">
-                                            <span className="text-[0.68rem] uppercase tracking-[0.12em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
-                                                {item}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </motion.div>
-
-                            {/* C. Right — Floating Ticket Card */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 12 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.4, delay: 0.18 }}
-                                className="hidden lg:flex flex-col gap-4"
-                            >
-                                {/* Hero image card */}
-                                <Squircle
-                                    cornerRadius={28}
-                                    cornerSmoothing={1}
-                                    className="relative overflow-hidden"
-                                    style={{
-                                        background: "linear-gradient(135deg, rgba(255,255,255,0.72), rgba(244,238,230,0.40))",
-                                        backdropFilter: "blur(20px)",
-                                        WebkitBackdropFilter: "blur(20px)",
-                                        boxShadow: "0 2px 20px var(--shadow), inset 0 1px 0 var(--glow)",
-                                        minHeight: "300px",
-                                    }}
-                                >
-                                    <img
-                                        src="https://tse4.mm.bing.net/th/id/OIP.ORp0RbGGta73Rv0pF8cmdgHaC6?r=0&rs=1&pid=ImgDetMain&o=7&rm=3"
-                                        alt="PUVerse campus community"
-                                        className="h-full w-full object-cover absolute inset-0"
-                                    />
-                                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,18,20,0.05),rgba(18,18,20,0.65))]" />
-                                    <div className="absolute bottom-6 left-6 right-6 z-10">
-                                        <p className="text-[0.62rem] font-semibold uppercase tracking-[0.2em] text-white/70 font-[family-name:var(--font-mono)] mb-1">
-                                            PUVerse Network
-                                        </p>
-                                        <p className="text-[1.3rem] font-bold text-white font-[family-name:var(--font-display)] leading-tight">
-                                            Campus life, connected.
-                                        </p>
-                                    </div>
-                                </Squircle>
-
-                                {/* Event Ticket Card */}
-                                {loadingEvent ? (
-                                    <Squircle
-                                        cornerRadius={22}
-                                        cornerSmoothing={1}
-                                        className="p-5 min-h-[160px] flex items-center justify-center text-xs text-[var(--col-secondary)]"
-                                        style={{
-                                            background: "hsl(0 0% 96% / 0.72)",
-                                            backdropFilter: "blur(24px) saturate(1.4)",
-                                            WebkitBackdropFilter: "blur(24px) saturate(1.4)",
-                                            border: "1px solid hsl(25 65% 45% / 0.22)",
-                                            boxShadow: "0 2px 16px var(--shadow), inset 0 1px 0 var(--glow)",
-                                        }}
-                                    >
-                                        Loading next event...
-                                    </Squircle>
-                                ) : nextEvent ? (
-                                    <Squircle
-                                        cornerRadius={22}
-                                        cornerSmoothing={1}
-                                        className="p-5"
-                                        style={{
-                                            background: "hsl(0 0% 96% / 0.72)",
-                                            backdropFilter: "blur(24px) saturate(1.4)",
-                                            WebkitBackdropFilter: "blur(24px) saturate(1.4)",
-                                            border: "1px solid hsl(25 65% 45% / 0.22)",
-                                            boxShadow: "0 2px 16px var(--shadow), inset 0 1px 0 var(--glow)",
-                                        }}
-                                    >
-                                        {/* Ticket header */}
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="inline-flex items-center gap-1.5 text-[0.6rem] font-bold uppercase tracking-[0.16em] text-[var(--accent)] font-[family-name:var(--font-mono)]">
-                                                Next Big Event
-                                            </span>
-                                            <span
-                                                className="inline-flex items-center gap-1 text-[0.58rem] font-semibold px-2.5 py-1 rounded-full font-[family-name:var(--font-mono)]"
-                                                style={{ background: "hsl(142 50% 45% / 0.1)", color: "hsl(142 50% 35%)", border: "1px solid hsl(142 50% 45% / 0.2)" }}
-                                            >
-                                                <span className="w-1.5 h-1.5 rounded-full bg-[hsl(142_50%_45%)]" />
-                                                Open
-                                            </span>
-                                        </div>
-
-                                        {/* Event name */}
-                                        <p className="text-[0.92rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] leading-snug mb-3">
-                                            {nextEvent.title}
-                                        </p>
-
-                                        {/* Meta row */}
-                                        <div className="flex flex-col gap-1.5 mb-4">
-                                            {nextEvent.eventDate && (
-                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                                    {formatEventDate(nextEvent.eventDate)}
-                                                </span>
-                                            )}
-                                            {nextEvent.venue && (
-                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                                    {nextEvent.venue}
-                                                </span>
-                                            )}
-                                            {seatsLeft !== null && (
-                                                <span className="flex items-center gap-2 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                                                    {seatsLeft} Seats Left
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* Dashed separator */}
-                                        <div
-                                            className="h-px mb-4"
-                                            style={{ backgroundImage: "repeating-linear-gradient(90deg, hsl(0 0% 75% / 0.5) 0px, hsl(0 0% 75% / 0.5) 5px, transparent 5px, transparent 10px)" }}
-                                        />
-
-                                        {/* CTA */}
-                                        <Link
-                                            href={eventUrlFor(nextEvent)}
-                                            className="w-full inline-flex items-center justify-center gap-2 text-[0.76rem] font-semibold py-2.5 rounded-[12px] bg-[var(--col-primary)] text-[var(--bg)] transition-all duration-200 hover:opacity-85 active:scale-95 font-[family-name:var(--font-display)]"
-                                        >
-                                            Register Now →
-                                        </Link>
-                                    </Squircle>
-                                ) : (
-                                    /* Empty space when no event data exists */
-                                    <div className="min-h-[100px]" />
-                                )}
-                            </motion.div>
-                        </div>
-                    </div>
-                </section>
+                {/* Hero Section — centered layout with live spotlight deck */}
+                <HeroSection events={events} clubs={clubs} loading={loadingFeatured} />
 
                 {/* Section 2: Metrics & Impact Bar */}
                 <motion.section
@@ -345,15 +119,8 @@ export default function LandingPage() {
                                         </span>
                                     )}
 
-                                    {/* Label + live indicator */}
-                                    <span className="flex items-center justify-center gap-1.5 text-xs sm:text-sm text-[var(--col-secondary)] font-[family-name:var(--font-ui)] leading-snug text-center">
-                                        {metric.live && (
-                                            <span className="relative flex-shrink-0 w-2 h-2">
-                                                {/* Pulsing ring */}
-                                                <span className="absolute inset-0 rounded-full bg-[hsl(142_50%_45%_/_0.35)] animate-ping" />
-                                                <span className="relative block w-2 h-2 rounded-full bg-[hsl(142_50%_42%)]" />
-                                            </span>
-                                        )}
+                                    {/* Label */}
+                                    <span className="block text-xs sm:text-sm text-[var(--col-secondary)] font-[family-name:var(--font-ui)] leading-snug text-center">
                                         {metric.label}
                                     </span>
                                 </div>

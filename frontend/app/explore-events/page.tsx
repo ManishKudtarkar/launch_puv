@@ -310,7 +310,14 @@ export default function ExploreEventsPage() {
           )}
 
           {!loading && filteredEvents.length > 0 && (
-            <div className={layoutMode === "card" ? "grid gap-5" : "grid gap-5 sm:grid-cols-[repeat(auto-fit,minmax(min(100%,19rem),1fr))]"}>
+            <div
+              className={
+                layoutMode === "card"
+                  ? "grid gap-5 w-full max-w-full"
+                  : // Fixed columns: 1 (mobile) → 2 (tablet) → 3 (desktop). Rows stretch so cards share a height.
+                  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-7xl mx-auto my-6 items-stretch"
+              }
+            >
               {filteredEvents.map((event) => {
                 const start = event.startTime || event.eventDate || "";
                 const end = event.endTime || start || "";
@@ -334,7 +341,7 @@ export default function ExploreEventsPage() {
                         router.push(eventUrlFor(event));
                       }
                     }}
-                    className={`w-full overflow-hidden rounded-[24px] border border-[hsl(25_18%_75%_/_0.48)] bg-[hsl(35_24%_97%_/_0.68)] backdrop-blur-xl shadow-[0_10px_35px_var(--shadow)] transition-all duration-300 hover:border-[var(--accent)] hover:shadow-[0_18px_50px_var(--shadow-lg)] hover:-translate-y-1 group cursor-pointer ${layoutMode === "card" ? "md:grid md:grid-cols-[minmax(13rem,31%)_minmax(0,1fr)]" : "flex flex-col"
+                    className={`w-full overflow-hidden rounded-[24px] border border-[hsl(25_18%_75%_/_0.48)] bg-[hsl(35_24%_97%_/_0.68)] backdrop-blur-xl shadow-[0_10px_35px_var(--shadow)] transition-all duration-300 hover:border-[var(--accent)] hover:shadow-[0_18px_50px_var(--shadow-lg)] hover:-translate-y-1 group cursor-pointer ${layoutMode === "card" ? "md:grid md:grid-cols-[minmax(13rem,31%)_minmax(0,1fr)]" : "flex flex-col h-full min-w-0"
                       }`}
                   >
                     {/* Auto-Sizing Image / Banner Wrapper */}
@@ -368,7 +375,7 @@ export default function ExploreEventsPage() {
                     </div>
 
                     {/* Content & Action Area */}
-                    <div className="flex min-w-0 flex-col justify-between p-5 md:p-7">
+                    <div className={`flex min-w-0 flex-col justify-between ${layoutMode === "card" ? "p-5 md:p-7" : "flex-1 p-5"}`}>
                       <div>
                         {/* Event Timing Bar */}
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--accent)] font-[family-name:var(--font-mono)]">
@@ -384,7 +391,10 @@ export default function ExploreEventsPage() {
                         </div>
 
                         {/* Title */}
-                        <h2 className="mt-2.5 text-[clamp(1.15rem,2vw,1.55rem)] font-bold leading-snug text-[var(--col-primary)] group-hover:text-[var(--accent)] transition-colors font-[family-name:var(--font-display)]">
+                        <h2
+                          className={`mt-2.5 text-[clamp(1.15rem,2vw,1.55rem)] font-bold leading-snug text-[var(--col-primary)] group-hover:text-[var(--accent)] transition-colors font-[family-name:var(--font-display)] ${layoutMode === "card" ? "" : "line-clamp-2 min-h-[2.75em] break-words"}`}
+                          title={event.title}
+                        >
                           {event.title}
                         </h2>
 
@@ -401,7 +411,14 @@ export default function ExploreEventsPage() {
                       </div>
 
                       {/* Action Button Area matching PUVerse Design System */}
-                      <div className="mt-7 flex flex-col gap-3 sm:flex-row items-center pt-2">
+                      <div
+                        className={
+                          layoutMode === "card"
+                            ? "mt-7 flex flex-col gap-3 sm:flex-row items-center pt-2"
+                            : // Grid: pinned to the card bottom, full-width stacked buttons (fit narrow 3-col cards)
+                            "mt-auto pt-5 flex flex-col gap-2.5 [&>button]:w-full"
+                        }
+                      >
                         <button
                           type="button"
                           onClick={(e) => {
