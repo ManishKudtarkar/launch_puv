@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
 import { useDemoStore } from "@/store/demo-store";
-import { ROLE_HOME } from "@/constants/navigation";
+import { getDashboardHref } from "@/lib/role-home";
 import { api, type Event as ApiEvent, getApiErrorMessage } from "@/lib/api-client";
 import { Calendar, Clock3, Filter, MapPin, Search, LogOut, LayoutDashboard, User, ArrowRight, Grid, List } from "lucide-react";
 
@@ -59,7 +59,7 @@ export default function ExploreEventsPage() {
 
   const isLoggedIn = initialized && !!user && !!accessToken;
   const uiRole = user ? backendRoleToUiRole(user) : "student";
-  const dashboardHref = "/student"; // always route to student portal; Event Admins access /admin from there
+  const dashboardHref = getDashboardHref(user); // the logged-in user's own dashboard
   const roleLabel =
     uiRole === "super_admin"
       ? "Super Admin"

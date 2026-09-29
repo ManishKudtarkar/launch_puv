@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
 import { useDemoStore } from "@/store/demo-store";
+import { getDashboardHref } from "@/lib/role-home";
 import { X, Menu, LayoutDashboard, LogOut, User } from "lucide-react";
 
 const NAV_LINKS = [
@@ -22,7 +23,7 @@ export default function LandingNav() {
 
   const isLoggedIn = initialized && !!user && !!accessToken;
   const uiRole = user ? backendRoleToUiRole(user) : "student";
-  const dashboardHref = "/student";
+  const dashboardHref = getDashboardHref(user); // the logged-in user's own dashboard
   const roleLabel =
     uiRole === "super_admin" ? "Super Admin" :
       uiRole === "admin" ? "Event Admin" :

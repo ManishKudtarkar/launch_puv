@@ -29,6 +29,7 @@ import {
   CalendarX,
 } from "lucide-react";
 import { isEventExpired } from "@/lib/event-status";
+import { getDashboardHref } from "@/lib/role-home";
 
 const glassStyle = {
   background: "hsl(0 0% 96% / 0.42)",
@@ -338,7 +339,7 @@ export default function PublicEventSlugPage() {
             <Link href="/student/registrations" className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)]">
               My Registrations
             </Link>
-            <Link href="/student" className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)]">
+            <Link href={user ? getDashboardHref(user) : "/student"} className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)]">
               Dashboard
             </Link>
           </div>

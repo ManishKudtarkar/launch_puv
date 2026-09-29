@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import type { Event as ApiEvent } from "@/lib/api-client";
 import type { Club } from "@/types";
 import { getEventExpiryTime, isEventExpired } from "@/lib/event-status";
+import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
+import { getDashboardHref, ROLE_DASHBOARD_LABEL } from "@/lib/role-home";
 
 type HeroSectionProps = {
   events: ApiEvent[];
@@ -86,6 +88,7 @@ function EmptyCard({ tag, title, cta, href }: { tag: string; title: string; cta:
 export default function HeroSection({ events, clubs, loading }: HeroSectionProps) {
   // Captured once per mount; avoids calling Date.now() during render.
   const [now] = useState(() => Date.now());
+  const authUser = useAuthStore((s) => s.user);
 
   const { todayCount, featured, upNext, upNextIsToday, topClub } = useMemo(() => {
     const open = events
@@ -169,10 +172,10 @@ export default function HeroSection({ events, clubs, loading }: HeroSectionProps
             Explore Events
           </Link>
           <Link
-            href="/student"
+            href={authUser ? getDashboardHref(authUser) : "/student"}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full bg-[var(--surface)] text-[var(--col-primary)] font-semibold text-sm border border-[var(--line)] hover:bg-[var(--surface-hover)] active:scale-[0.98] transition-all font-[family-name:var(--font-display)]"
           >
-            Student Dashboard
+            {authUser ? ROLE_DASHBOARD_LABEL[backendRoleToUiRole(authUser)] : "Student Dashboard"}
           </Link>
         </div>
 
