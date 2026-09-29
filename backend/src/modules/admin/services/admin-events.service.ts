@@ -42,6 +42,24 @@ export class AdminEventsService {
     });
   }
 
+  // Platform-wide list for Super Admin analytics: every admin's events,
+  // newest event date first, with creator and registration count.
+  async getAllEvents(user: AuthenticatedUser) {
+    this.ensureSuperAdmin(user);
+
+    return this.prisma.event.findMany({
+      orderBy: { eventDate: 'desc' },
+      include: {
+        createdBy: {
+          select: { id: true, fullName: true, email: true },
+        },
+        _count: {
+          select: { registrations: { where: { status: 'ACTIVE' } } },
+        },
+      },
+    });
+  }
+
   async getEventForReview(id: string, user: AuthenticatedUser) {
     this.ensureSuperAdmin(user);
 

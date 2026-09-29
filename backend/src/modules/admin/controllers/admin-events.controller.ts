@@ -37,6 +37,15 @@ export class AdminEventsController {
     return this.adminEventsService.getPendingEvents(user);
   }
 
+  // Declared before ':id' so "all" isn't parsed as an event UUID.
+  @Get('all')
+  @ApiOperation({
+    summary: 'Get every event across all admins (platform-wide analytics)',
+  })
+  getAllEvents(@CurrentUser() user: AuthenticatedUser) {
+    return this.adminEventsService.getAllEvents(user);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get event details for review',
