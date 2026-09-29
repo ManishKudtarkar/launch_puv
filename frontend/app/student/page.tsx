@@ -3,23 +3,21 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Squircle } from "@squircle-js/react";
-import { useDemoStore } from "@/store/demo-store";
 import { useAuthStore } from "@/store/auth-store";
-import { api, type Event as ApiEvent } from "@/lib/api-client";
+import { api, type Event as ApiEvent, type MyRegistration } from "@/lib/api-client";
 import type { Community, Club } from "@/types";
 import { formatDate } from "@/lib/utils";
-import { CalendarPlus, ClipboardList, QrCode, ShieldCheck, ArrowRight, Users2, Building2 } from "lucide-react";
+import { CalendarPlus, CalendarX, ClipboardList, QrCode, ShieldCheck, ArrowRight, Users2, Building2 } from "lucide-react";
 
 export default function StudentDashboard() {
-  const user = useDemoStore((s) => s.user);
   const authUser = useAuthStore((s) => s.user);
-  const registrations = useDemoStore((s) => s.registrations);
-  const tickets = useDemoStore((s) => s.tickets);
-  const certificates = useDemoStore((s) => s.certificates);
-  const notifications = useDemoStore((s) => s.notifications);
-  const isEventAdmin = authUser?.role === "EVENT_ADMIN" || user?.backendRole === "EVENT_ADMIN" || user?.role === "admin";
+  const isEventAdmin = authUser?.role === "EVENT_ADMIN";
 
-  const [realRegs, setRealRegs] = useState<{ id: string; eventTitle: string; registeredAt: string; status: string }[]>([]);
+  // Live data only — no mock/demo fallbacks. A brand-new user sees zeros.
+  const [myRegs, setMyRegs] = useState<MyRegistration[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeTicketCount, setActiveTicketCount] = useState(0);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [volunteerEvents, setVolunteerEvents] = useState<ApiEvent[]>([]);
 
   // Communities & Clubs — memberships + follows
@@ -35,33 +33,29 @@ export default function StudentDashboard() {
     if (!authUser) return;
     let active = true;
 
-    // Fetch events list once, then batch-fetch registrations with a concurrency
-    // limit of 5 to avoid flooding the backend with N parallel requests.
-    api.events.list().then(async (eventsList) => {
-      const results: { id: string; eventTitle: string; registeredAt: string; status: string }[] = [];
-      const CONCURRENCY = 5;
-      for (let i = 0; i < eventsList.length; i += CONCURRENCY) {
-        const batch = eventsList.slice(i, i + CONCURRENCY);
-        await Promise.allSettled(
-          batch.map(async (ev) => {
-            try {
-              const reg = await api.events.registrations.me(ev.id);
-              if (reg) {
-                results.push({
-                  id: reg.id,
-                  eventTitle: ev.title,
-                  registeredAt: (reg as any).createdAt || (reg as any).registeredAt || new Date().toISOString(),
-                  status: (reg as any).status || "ACTIVE",
-                });
-              }
-            } catch {
-              // not registered for this event — expected
-            }
-          })
+    // One call for all of the user's registrations + their notifications.
+    // On failure we keep the zeroed defaults — never mock numbers.
+    Promise.allSettled([api.registrations.mine(), api.notifications.list()])
+      .then(([regsRes, notifRes]) => {
+        if (!active) return;
+        const regs = regsRes.status === "fulfilled" ? regsRes.value : [];
+        setMyRegs(regs);
+        // Active ticket = active registration with a pass, not yet used, event not over
+        const now = Date.now();
+        setActiveTicketCount(
+          regs.filter((r) => {
+            if (r.status !== "ACTIVE" || !r.ticketToken || r.checkedInAt) return false;
+            const end = new Date(r.event.endTime || r.event.startTime || r.event.eventDate).getTime();
+            return isNaN(end) || end >= now;
+          }).length,
         );
-      }
-      if (active) setRealRegs(results);
-    }).catch(() => {});
+        setUnreadCount(
+          notifRes.status === "fulfilled" ? notifRes.value.filter((n) => !n.read).length : 0,
+        );
+      })
+      .finally(() => {
+        if (active) setLoadingStats(false);
+      });
 
     return () => { active = false; };
   }, [authUser]);
@@ -70,7 +64,7 @@ export default function StudentDashboard() {
     if (!authUser) return;
     api.volunteers.myEvents()
       .then((evs) => setVolunteerEvents(evs))
-      .catch(() => {});
+      .catch(() => { });
   }, [authUser]);
 
   // Fetch communities and clubs the user is a member of or follows
@@ -119,29 +113,35 @@ export default function StudentDashboard() {
         );
         setLeadClubs(leadClubList);
       }
-    }).catch(() => {}).finally(() => {
+    }).catch(() => { }).finally(() => {
       if (active) setLoadingOrgs(false);
     });
 
     return () => { active = false; };
   }, [authUser]);
 
-  const activeRegs = registrations.filter((r) => r.status !== "cancelled");
-  const displayRegs = realRegs.length > 0 ? realRegs : activeRegs;
-  const regCount = realRegs.length > 0 ? realRegs.length : activeRegs.length;
-  const unread = notifications.filter((n) => !n.read).length;
+  const activeRegs = myRegs.filter((r) => r.status === "ACTIVE");
+  const displayRegs = activeRegs.slice(0, 3).map((r) => ({
+    id: r.id,
+    eventTitle: r.event.title,
+    registeredAt: r.registeredAt,
+    status: r.status,
+  }));
+  const regCount = activeRegs.length;
+  // No certificate feature exists in the backend yet, so this is a true zero.
+  const certificateCount = 0;
 
   const stats = [
     { label: "Registrations", value: regCount, icon: <><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></> },
-    { label: "Active Tickets", value: tickets.filter((t) => t.status === "active").length, icon: <><path d="M2 12h5l2-7 4 14 2-7h5" /></> },
-    { label: "Certificates", value: certificates.length, icon: <><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></> },
-    { label: "Unread", value: unread, icon: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></> },
+    { label: "Active Tickets", value: activeTicketCount, icon: <><path d="M2 12h5l2-7 4 14 2-7h5" /></> },
+    { label: "Certificates", value: certificateCount, icon: <><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></> },
+    { label: "Unread", value: unreadCount, icon: <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></> },
   ];
 
   const hasOrgs = myCommunities.length > 0 || myClubs.length > 0;
 
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       {/* Hero area */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 items-center mb-10">
         {/* Left — Welcome */}
@@ -153,7 +153,7 @@ export default function StudentDashboard() {
           <h1 className="text-[clamp(1.8rem,4vw,2.8rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
             Welcome back,
             <br />
-            {authUser?.fullName?.split(" ")[0] || user?.name?.split(" ")[0]}
+            {authUser?.fullName?.trim().split(" ")[0] ?? ""}
             <span className="text-[var(--accent)] font-[family-name:var(--font-cursive)] font-normal text-[0.7em]">
               {" "}.
             </span>
@@ -183,9 +183,13 @@ export default function StudentDashboard() {
                   {stat.label}
                 </p>
                 <div className="flex items-end justify-between mt-auto pt-1">
-                  <p className="text-[1.9rem] font-semibold leading-none tracking-[-0.03em] text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
-                    {stat.value}
-                  </p>
+                  {loadingStats ? (
+                    <span className="block h-8 w-12 rounded-md bg-[hsl(0_0%_80%_/_0.35)] animate-pulse" aria-label="Loading" />
+                  ) : (
+                    <p className="text-[1.9rem] font-semibold leading-none tracking-[-0.03em] text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
+                      {stat.value}
+                    </p>
+                  )}
                   <div className="w-10 h-10 rounded-full border border-[var(--accent)] flex items-center justify-center flex-shrink-0">
                     <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] stroke-[var(--accent)] fill-none stroke-[1.5]" strokeLinecap="round" strokeLinejoin="round">
                       {stat.icon}
@@ -466,7 +470,10 @@ export default function StudentDashboard() {
           </div>
 
           <div className="space-y-2">
-            {displayRegs.slice(0, 4).map((reg) => (
+            {loadingStats && [1, 2, 3].map((i) => (
+              <div key={i} className="h-[60px] rounded-[18px] bg-[hsl(0_0%_100%_/_0.4)] animate-pulse" />
+            ))}
+            {!loadingStats && displayRegs.map((reg) => (
               <Squircle
                 key={reg.id}
                 cornerRadius={18}
@@ -491,8 +498,8 @@ export default function StudentDashboard() {
                   <span
                     className="px-2.5 py-1 rounded-[8px] text-[0.58rem] uppercase tracking-[0.1em] font-medium flex-shrink-0 font-[family-name:var(--font-mono)]"
                     style={{
-                      background: reg.status === "ACTIVE" || reg.status === "registered" ? "hsl(25 65% 45% / 0.12)" : "hsl(0 0% 90% / 0.6)",
-                      color: reg.status === "ACTIVE" || reg.status === "registered" ? "var(--accent)" : "var(--col-secondary)",
+                      background: reg.status === "ACTIVE" ? "hsl(25 65% 45% / 0.12)" : "hsl(0 0% 90% / 0.6)",
+                      color: reg.status === "ACTIVE" ? "var(--accent)" : "var(--col-secondary)",
                     }}
                   >
                     {reg.status === "ACTIVE" ? "Active" : reg.status}
@@ -500,9 +507,14 @@ export default function StudentDashboard() {
                 </div>
               </Squircle>
             ))}
-            {displayRegs.length === 0 && (
+            {!loadingStats && displayRegs.length === 0 && (
+              /* Mirrors the "Communities & Clubs" empty state */
               <div className="py-10 text-center">
-                <p className="text-[0.84rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No registrations yet.</p>
+                <div className="w-11 h-11 rounded-full bg-[hsl(25_65%_45%_/_0.08)] flex items-center justify-center mx-auto mb-3">
+                  <CalendarX className="w-5 h-5 text-[var(--accent)]" strokeWidth={1.5} />
+                </div>
+                <p className="text-[0.84rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)]">No registrations yet</p>
+                <p className="mt-1 text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">You haven&apos;t registered for any campus events yet.</p>
                 <Link href="/explore-events" className="mt-3 inline-flex items-center gap-1.5 text-[0.76rem] font-medium text-[var(--accent)] hover:underline font-[family-name:var(--font-ui)]">
                   Explore events →
                 </Link>

@@ -103,6 +103,25 @@ export type AttendanceResponse = {
   };
   registrations: AttendanceItem[];
 };
+export type MyRegistration = {
+  id: string;
+  eventId: string;
+  status: "ACTIVE" | "CANCELLED";
+  ticketToken: string | null;
+  checkedInAt: string | null;
+  registeredAt: string;
+  event: {
+    id: string;
+    title: string;
+    slug: string;
+    eventDate: string;
+    startTime: string | null;
+    endTime: string | null;
+    venue: string | null;
+    status: EventStatus;
+    bannerUrl: string | null;
+  };
+};
 export type ApiError = { statusCode?: number; message?: string | string[]; timestamp?: string; path?: string };
 
 export const API_URL =
@@ -232,7 +251,7 @@ export const api = {
     me: () => request<{ userId: string; email: string; role: BackendRole; userType: UserType; sessionId: string }>({ method: "GET", url: "/auth/me" }),
     changePassword: (body: { currentPassword: string; newPassword: string }) => request<{ message: string }>({ method: "POST", url: "/auth/password", data: body }),
     forgotPassword: (email: string) => request<{ message: string }>({ method: "POST", url: "/auth/forgot-password", data: { email } }),
-    resetPassword: (body: { token: string; newPassword: string }) => request<{ message: string }>({ method: "POST", url: "/auth/reset-password", data: body }),
+    resetPassword: (body: { token: string; email?: string; newPassword: string }) => request<{ success: boolean; message: string }>({ method: "POST", url: "/auth/reset-password", data: body }),
   },
   users: {
     me: () => request<ApiUser>({ method: "GET", url: "/users/me" }),
@@ -324,6 +343,10 @@ export const api = {
       update: (eventId: string, data: { ticketReleaseMode?: string; ticketReleaseHours?: number; ticketReleaseCustomDate?: string; scannedFieldsConfig?: string[] }) =>
         request<Event>({ method: "PATCH", url: `/events/${eventId}/ticket-settings`, data }),
     },
+  },
+  registrations: {
+    mine: (limit?: number) =>
+      request<MyRegistration[]>({ method: "GET", url: "/registrations/me", params: limit ? { limit } : undefined }),
   },
   volunteers: {
     myEvents: () => request<Event[]>({ method: "GET", url: "/volunteers/my-events" }),

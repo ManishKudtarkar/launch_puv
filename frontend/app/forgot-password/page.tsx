@@ -26,7 +26,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center">
+    <div className="min-h-screen relative flex items-center justify-center w-full max-w-full overflow-x-hidden">
       <div className="blob-container">
         <div className="blob blob-1" />
         <div className="blob blob-2" />
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
             </p>
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1.5">
-                <label htmlFor="email" className="block text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+                <label htmlFor="email" className="block text-[0.62rem] font-bold uppercase tracking-[0.18em] text-[var(--col-secondary)] font-[family-name:var(--font-mono)]">
                   Email
                 </label>
                 <Squircle cornerRadius={12} cornerSmoothing={1} className="w-full">

@@ -80,7 +80,7 @@ export default function AdminEventsPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this draft event?")) return;
+    if (!confirm("Delete this event? This cannot be undone.")) return;
     setActingId(id);
     try {
       await api.events.remove(id);
@@ -169,47 +169,45 @@ export default function AdminEventsPage() {
                     <span className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">{label}</span>
                   </div>
                   <div className="flex items-center gap-1.5 justify-end">
-                  <Link href={`/admin/events/${event.id}`} title="View Event Details">
-                    <div className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
-                      <Eye className="w-[12px] h-[12px]" strokeWidth={1.5} />
-                    </div>
-                  </Link>
-                  <Link href={`/admin/events/create?event=${event.id}`} title="Edit Event in Wizard">
-                    <div className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--col-primary)] hover:text-[var(--col-primary)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
-                      <Pencil className="w-[11px] h-[11px]" strokeWidth={1.5} />
-                    </div>
-                  </Link>
-                  {event.status === "DRAFT" && (
-                    <button onClick={() => handleSubmit(event.id)} disabled={isActing}
-                      className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
-                      style={{ background: "hsl(200 70% 50% / 0.1)", color: "hsl(200 60% 35%)" }}>
-                      {isActing ? "..." : "Submit"}
-                    </button>
-                  )}
-                  {event.status === "CHANGES_REQUESTED" && (
-                    <button onClick={() => handleResubmit(event.id)} disabled={isActing}
-                      className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
-                      style={{ background: "hsl(270 60% 65% / 0.1)", color: "hsl(270 50% 40%)" }}>
-                      {isActing ? "..." : "Resubmit"}
-                    </button>
-                  )}
-                  {event.status === "APPROVED" && (
-                    <button
-                      onClick={() => handlePublish(event.id)}
-                      disabled={isActing}
-                      title="Publish this approved event to make it publicly discoverable"
-                      className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
-                      style={{ background: "hsl(142 50% 45% / 0.12)", color: "hsl(142 50% 30%)" }}>
-                      {isActing ? "Publishing..." : "Publish"}
-                    </button>
-                  )}
-                  {event.status === "DRAFT" && (
-                    <button onClick={() => handleDelete(event.id)} disabled={isActing}
+                    <Link href={`/admin/events/${event.id}`} title="View Event Details">
+                      <div className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
+                        <Eye className="w-[12px] h-[12px]" strokeWidth={1.5} />
+                      </div>
+                    </Link>
+                    <Link href={`/admin/events/create?event=${event.id}`} title="Edit Event in Wizard">
+                      <div className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--col-primary)] hover:text-[var(--col-primary)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
+                        <Pencil className="w-[11px] h-[11px]" strokeWidth={1.5} />
+                      </div>
+                    </Link>
+                    <button onClick={() => handleDelete(event.id)} disabled={isActing} title="Delete Event"
                       className="w-7 h-7 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer disabled:opacity-50">
                       <Trash2 className="w-[11px] h-[11px]" strokeWidth={1.5} />
                     </button>
-                  )}
-                </div>
+                    {event.status === "DRAFT" && (
+                      <button onClick={() => handleSubmit(event.id)} disabled={isActing}
+                        className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
+                        style={{ background: "hsl(200 70% 50% / 0.1)", color: "hsl(200 60% 35%)" }}>
+                        {isActing ? "..." : "Submit"}
+                      </button>
+                    )}
+                    {event.status === "CHANGES_REQUESTED" && (
+                      <button onClick={() => handleResubmit(event.id)} disabled={isActing}
+                        className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
+                        style={{ background: "hsl(270 60% 65% / 0.1)", color: "hsl(270 50% 40%)" }}>
+                        {isActing ? "..." : "Resubmit"}
+                      </button>
+                    )}
+                    {event.status === "APPROVED" && (
+                      <button
+                        onClick={() => handlePublish(event.id)}
+                        disabled={isActing}
+                        title="Publish this approved event to make it publicly discoverable"
+                        className="px-2.5 py-1 text-[0.62rem] font-medium rounded-[8px] transition-all duration-200 hover:opacity-80 disabled:opacity-50 cursor-pointer font-[family-name:var(--font-mono)]"
+                        style={{ background: "hsl(142 50% 45% / 0.12)", color: "hsl(142 50% 30%)" }}>
+                        {isActing ? "Publishing..." : "Publish"}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {typeof event.reviewNotes === "string" && event.reviewNotes && (event.status === "CHANGES_REQUESTED" || event.status === "REJECTED") && (
                   <div className="px-6 pb-4">

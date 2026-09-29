@@ -26,7 +26,9 @@ import {
   AlertCircle,
   FileText,
   Ticket,
+  CalendarX,
 } from "lucide-react";
+import { isEventExpired } from "@/lib/event-status";
 
 const glassStyle = {
   background: "hsl(0 0% 96% / 0.42)",
@@ -117,6 +119,16 @@ export default function PublicEventSlugPage() {
   // Dynamic Registration Form state
   const [formFields, setFormFields] = useState<{ key: string; label: string; inputType: string; required: boolean }[]>([]);
   const [formData, setFormData] = useState<Record<string, string>>({});
+
+  // Clock for expiry checks. Ticks every 30s so an open page locks registration
+  // the moment the event ends, without calling Date.now() during render.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  // Once true, the CTA, form and modal are all withheld (modal render is gated too).
+  const isExpired = isEventExpired(event, now);
 
   useEffect(() => {
     let active = true;
@@ -214,7 +226,7 @@ export default function PublicEventSlugPage() {
 
   // Open modal and pre-fill form data with user details
   const openRegistrationModal = () => {
-    if (!user) return;
+    if (!user || isExpired) return;
     const initialValues: Record<string, string> = {
       FULL_NAME: user.fullName || "",
       EMAIL: user.email || "",
@@ -235,7 +247,7 @@ export default function PublicEventSlugPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !event) return;
+    if (!user || !event || isExpired) return;
 
     // Client-side required field validation
     for (const field of formFields) {
@@ -309,7 +321,7 @@ export default function PublicEventSlugPage() {
   const isRegistered = !!myReg;
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[var(--bg)]">
       <nav className="sticky top-0 z-[200] border-b border-[var(--line-soft)] bg-[var(--bg-card)]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4">
           <Link href="/" className="flex items-center gap-[7px]">
@@ -356,7 +368,14 @@ export default function PublicEventSlugPage() {
           </div>
 
           <div className="flex items-center gap-3 flex-shrink-0">
-            {isRegistered ? (
+            {isExpired ? (
+              <div
+                role="status"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[hsl(0_0%_90%_/_0.6)] px-5 py-2.5 text-[0.82rem] font-bold text-[var(--col-secondary)] shadow-sm font-[family-name:var(--font-display)]"
+              >
+                <CalendarX className="w-4 h-4" /> Event Ended · Registration Closed
+              </div>
+            ) : isRegistered ? (
               <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-5 py-2.5 text-[0.82rem] font-bold text-emerald-700 shadow-sm font-[family-name:var(--font-display)]">
                 <Check className="w-4 h-4 text-emerald-600" /> Registered
               </div>
@@ -697,7 +716,40 @@ export default function PublicEventSlugPage() {
                 </p>
               )}
 
-              {isRegistered ? (
+              {isExpired ? (
+                <Squircle
+                  cornerRadius={16}
+                  cornerSmoothing={1}
+                  className="w-full p-4 bg-white/15 border border-white/25 backdrop-blur-sm"
+                >
+                  <div role="status" className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center flex-shrink-0">
+                      <CalendarX className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-[0.84rem] font-bold text-white font-[family-name:var(--font-display)]">
+                        Event Ended · Registration Closed
+                      </p>
+                      <p className="text-[0.7rem] text-white/80 font-[family-name:var(--font-ui)]">
+                        {isRegistered ? (
+                          <>
+                            You were registered. View it in{" "}
+                            <Link href="/student/registrations" className="text-white font-bold underline">
+                              My Registrations
+                            </Link>
+                          </>
+                        ) : (
+                          <>
+                            <Link href="/explore-events" className="text-white font-bold underline">
+                              Explore upcoming events
+                            </Link>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </Squircle>
+              ) : isRegistered ? (
                 <div>
                   <Squircle
                     cornerRadius={16}
@@ -752,8 +804,8 @@ export default function PublicEventSlugPage() {
         </div>
       </main>
 
-      {/* Dynamic Registration Form Modal */}
-      {showRegModal && (
+      {/* Dynamic Registration Form Modal (never rendered once the event has ended) */}
+      {showRegModal && !isExpired && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
           <div className="fixed inset-0 bg-[hsl(0_0%_10%_/_0.45)] backdrop-blur-sm" onClick={() => setShowRegModal(false)} />
           <Squircle
