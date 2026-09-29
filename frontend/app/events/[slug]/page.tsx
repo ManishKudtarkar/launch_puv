@@ -45,7 +45,7 @@ const inputClass =
   "w-full px-3.5 py-2.5 text-[0.82rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none transition-all duration-200 focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-30";
 
 const labelClass =
-  "block text-[0.66rem] uppercase tracking-[0.12em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-1.5";
+  "block text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[var(--col-secondary)] font-[family-name:var(--font-mono)] mb-1.5";
 
 const FIELD_CATALOG: Record<string, { label: string; inputType: string; category?: string }> = {
   FULL_NAME: { label: "Full Name", inputType: "TEXT" },
@@ -381,7 +381,7 @@ export default function PublicEventSlugPage() {
               type="button"
               onClick={() => {
                 if (navigator.share) {
-                  navigator.share({ title: event.title, url: window.location.href }).catch(() => {});
+                  navigator.share({ title: event.title, url: window.location.href }).catch(() => { });
                 } else {
                   navigator.clipboard.writeText(window.location.href);
                   alert("Link copied to clipboard!");
@@ -406,13 +406,21 @@ export default function PublicEventSlugPage() {
           </div>
         </div>
 
-        {/* Clean Banner Image Section (No overlapping text) */}
+        {/* Clean Banner Image Section (Full artwork, no cropping) */}
         {event.bannerUrl ? (
-          <div className="relative rounded-[24px] overflow-hidden mb-8 border border-[var(--line-soft)] shadow-md aspect-[21/9] sm:aspect-[24/9] max-h-[380px] w-full bg-slate-900">
+          <div className="relative w-full max-w-full overflow-hidden rounded-[24px] mb-8 border border-[var(--line-soft)] shadow-md bg-slate-900 flex items-center justify-center min-h-[250px] sm:min-h-[350px] max-h-[520px] p-2 sm:p-3">
+            {/* Ambient blurred fill — uses the poster's own colours to fill margins */}
+            <img
+              src={event.bannerUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-105 pointer-events-none"
+            />
+            {/* Foreground banner — 100% of the uploaded artwork, no crop */}
             <img
               src={event.bannerUrl}
               alt={event.title}
-              className="w-full h-full object-cover"
+              className="relative z-10 w-full h-auto max-h-[500px] object-contain object-center rounded-2xl transition-all duration-300"
             />
           </div>
         ) : (
@@ -790,8 +798,8 @@ export default function PublicEventSlugPage() {
               </div>
             )}
 
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <form onSubmit={handleRegister} className="space-y-4 w-full max-w-full overflow-x-hidden">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5 w-full">
                 {formFields.map((field) => {
                   const isFullWidth = field.inputType === "TEXTAREA" || field.key === "PROJECT_DESCRIPTION" || field.key === "TECHNICAL_SKILLS";
                   return (
@@ -815,14 +823,14 @@ export default function PublicEventSlugPage() {
                             field.inputType === "EMAIL"
                               ? "email"
                               : field.inputType === "NUMBER"
-                              ? "number"
-                              : field.inputType === "DATE"
-                              ? "date"
-                              : field.inputType === "URL"
-                              ? "url"
-                              : field.inputType === "PHONE"
-                              ? "tel"
-                              : "text"
+                                ? "number"
+                                : field.inputType === "DATE"
+                                  ? "date"
+                                  : field.inputType === "URL"
+                                    ? "url"
+                                    : field.inputType === "PHONE"
+                                      ? "tel"
+                                      : "text"
                           }
                           required={field.required}
                           value={formData[field.key] || ""}

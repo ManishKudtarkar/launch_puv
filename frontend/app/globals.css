@@ -68,7 +68,7 @@
 /* ─── Base ─── */
 @layer base {
   *, *::before, *::after { box-sizing: border-box; }
-  html { scroll-behavior: smooth; height: 100%; }
+  html { scroll-behavior: smooth; height: 100%; overflow-x: hidden; max-width: 100%; }
 
   body {
     min-height: 100%;

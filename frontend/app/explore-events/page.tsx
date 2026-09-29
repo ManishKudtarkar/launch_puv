@@ -76,7 +76,7 @@ export default function ExploreEventsPage() {
 
   const [selectedTimeline, setSelectedTimeline] = useState<TimelineFilter>("all");
   const [search, setSearch] = useState("");
-  const [layoutMode, setLayoutMode] = useState<"card" | "grid">("card");
+  const [layoutMode, setLayoutMode] = useState<"grid" | "card">("grid");
 
   useEffect(() => {
     let active = true;
@@ -239,18 +239,18 @@ export default function ExploreEventsPage() {
             </div>
 
             {[
-              { key: "all",      label: "All Events" },
-              { key: "ongoing",  label: "Ongoing" },
+              { key: "all", label: "All Events" },
+              { key: "ongoing", label: "Ongoing" },
               { key: "upcoming", label: "Upcoming" },
-              { key: "past",     label: "Past" },
+              { key: "past", label: "Past" },
             ].map((item) => (
               <button
                 key={item.key}
                 type="button"
                 onClick={() => setSelectedTimeline(item.key as TimelineFilter)}
                 className={`rounded-full px-4 py-2 text-[0.72rem] font-semibold transition-all cursor-pointer font-[family-name:var(--font-display)] ${selectedTimeline === item.key
-                    ? "bg-[var(--col-primary)] text-[var(--bg)] shadow-md"
-                    : "border border-[var(--line)] bg-[var(--surface)] text-[var(--col-secondary)] hover:text-[var(--col-primary)]"
+                  ? "bg-[var(--col-primary)] text-[var(--bg)] shadow-md"
+                  : "border border-[var(--line)] bg-[var(--surface)] text-[var(--col-secondary)] hover:text-[var(--col-primary)]"
                   }`}
               >
                 {item.label}
@@ -339,10 +339,7 @@ export default function ExploreEventsPage() {
                   >
                     {/* Auto-Sizing Image / Banner Wrapper */}
                     <div
-                      className={`relative overflow-hidden flex items-center justify-center bg-[hsl(0_0%_92%_/_0.6)] ${layoutMode === "card"
-                          ? "w-full aspect-[16/9] md:aspect-auto md:min-h-full"
-                          : "w-full aspect-[16/9]"
-                        }`}
+                      className={`relative overflow-hidden flex items-center justify-center bg-[hsl(0_0%_92%_/_0.6)] w-full aspect-[16/9] ${layoutMode === "card" ? "md:self-start" : ""}`}
                     >
                       {event.bannerUrl ? (
                         <img
@@ -401,10 +398,6 @@ export default function ExploreEventsPage() {
                           </span>
                         </div>
 
-                        {/* Description */}
-                        <p className="mt-3.5 text-[var(--col-secondary)] text-sm leading-relaxed line-clamp-3 font-[family-name:var(--font-ui)]">
-                          {event.description || "Crafting seamless university experiences and campus digital events. Click View Details to learn more and register for this session."}
-                        </p>
                       </div>
 
                       {/* Action Button Area matching PUVerse Design System */}

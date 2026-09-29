@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Loader2,
   RefreshCw,
+  UserCheck,
 } from "lucide-react";
 
 // ── Exact same glassCard constant used in /admin/organizations ───────────────
@@ -35,6 +36,7 @@ type EventAnalytics = {
     attendedAt: string | null;
     fullName: string;
     email: string;
+    scannedBy: string | null;
   }>;
   absentAttendees: Array<{
     ticketToken?: string;
@@ -79,9 +81,9 @@ export default function AdminAnalyticsPage() {
       .list(selectedEventId)
       .then((res: AttendanceResponse) => {
         const totalRegistered = res.metrics.totalRegistered;
-        const totalAttended   = res.metrics.totalCheckedIn;
-        const totalAbsent     = totalRegistered - totalAttended;
-        const turnoutRate     = totalRegistered > 0
+        const totalAttended = res.metrics.totalCheckedIn;
+        const totalAbsent = totalRegistered - totalAttended;
+        const turnoutRate = totalRegistered > 0
           ? parseFloat(((totalAttended / totalRegistered) * 100).toFixed(1))
           : 0;
 
@@ -94,19 +96,20 @@ export default function AdminAnalyticsPage() {
           })
           .map((r) => ({
             ticketToken: r.ticketToken,
-            attendedAt:  r.checkedInAt ?? null,
-            fullName:    r.attendeeName,
-            email:       r.attendeeEmail,
+            attendedAt: r.checkedInAt ?? null,
+            fullName: r.attendeeName,
+            email: r.attendeeEmail,
+            scannedBy: r.checkedInByName ?? null,
           }));
 
         const absentAttendees = res.registrations
           .filter((r) => r.checkedInAt === null)
           .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
           .map((r) => ({
-            ticketToken:  r.ticketToken,
+            ticketToken: r.ticketToken,
             registeredAt: r.registeredAt,
-            fullName:     r.attendeeName,
-            email:        r.attendeeEmail,
+            fullName: r.attendeeName,
+            email: r.attendeeEmail,
           }));
 
         setAnalyticsMap((prev) => ({
@@ -130,17 +133,17 @@ export default function AdminAnalyticsPage() {
             [selectedEventId]: {
               event: ev,
               totalRegistered: 0,
-              totalAttended:   0,
-              totalAbsent:     0,
-              turnoutRate:     0,
+              totalAttended: 0,
+              totalAbsent: 0,
+              turnoutRate: 0,
               presentAttendees: [],
-              absentAttendees:  [],
+              absentAttendees: [],
             },
           }));
         }
       })
       .finally(() => setLoadingAnalytics(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEventId, events]);
 
   useEffect(() => { setActiveTab("present"); }, [selectedEventId]);
@@ -171,9 +174,9 @@ export default function AdminAnalyticsPage() {
       {/* ── Stat cards — same pattern as /admin/organizations ──────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {[
-          { label: "Registered",   value: selected?.totalRegistered ?? 0, Icon: Users,        color: "var(--accent)" },
-          { label: "Attended",     value: selected?.totalAttended   ?? 0, Icon: CheckCircle2, color: "hsl(142 50% 40%)" },
-          { label: "Absent",       value: selected?.totalAbsent     ?? 0, Icon: XCircle,      color: "#F87171" },
+          { label: "Registered", value: selected?.totalRegistered ?? 0, Icon: Users, color: "var(--accent)" },
+          { label: "Attended", value: selected?.totalAttended ?? 0, Icon: CheckCircle2, color: "hsl(142 50% 40%)" },
+          { label: "Absent", value: selected?.totalAbsent ?? 0, Icon: XCircle, color: "#F87171" },
           { label: "Turnout Rate", value: selected ? `${selected.turnoutRate}%` : "—", Icon: Target, color: "hsl(38 90% 50%)" },
         ].map((stat) => (
           <Squircle key={stat.label} cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassCard}>
@@ -299,8 +302,8 @@ export default function AdminAnalyticsPage() {
                     selected.turnoutRate >= 80
                       ? "hsl(142 60% 40%)"
                       : selected.turnoutRate >= 50
-                      ? "hsl(38 90% 50%)"
-                      : "var(--accent)",
+                        ? "hsl(38 90% 50%)"
+                        : "var(--accent)",
                 }}
               />
             </div>
@@ -348,147 +351,155 @@ export default function AdminAnalyticsPage() {
 
           {/* Attendee rows — same OrgRow card style ───────────────────────── */}
           <div className="w-full overflow-x-auto">
-          <div className="space-y-3 min-w-[300px]">
-            {activeTab === "present" ? (
-              selected.presentAttendees.length === 0 ? (
-                <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
-                  <CheckCircle2 className="w-8 h-8 mb-3 opacity-30" style={{ color: "hsl(142 50% 40%)" }} />
-                  <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">No check-ins yet</p>
-                  <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No attendees have been scanned in for this event.</p>
-                </Squircle>
-              ) : (
-                selected.presentAttendees.map((a, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      ...glassCard,
-                      borderRadius: "18px",
-                      border: "1px solid hsl(142 50% 45% / 0.2)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div className="flex items-center gap-4 p-4">
-                      {/* Avatar — same gradient style as OrgRow */}
-                      <div
-                        className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
-                        style={{ background: "linear-gradient(135deg, hsl(142 50% 40%), hsl(142 60% 50%))" }}
-                      >
-                        {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                      </div>
+            <div className="space-y-3 min-w-[300px]">
+              {activeTab === "present" ? (
+                selected.presentAttendees.length === 0 ? (
+                  <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
+                    <CheckCircle2 className="w-8 h-8 mb-3 opacity-30" style={{ color: "hsl(142 50% 40%)" }} />
+                    <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">No check-ins yet</p>
+                    <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No attendees have been scanned in for this event.</p>
+                  </Squircle>
+                ) : (
+                  selected.presentAttendees.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...glassCard,
+                        borderRadius: "18px",
+                        border: "1px solid hsl(142 50% 45% / 0.2)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="flex items-center gap-4 p-4">
+                        {/* Avatar — same gradient style as OrgRow */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
+                          style={{ background: "linear-gradient(135deg, hsl(142 50% 40%), hsl(142 60% 50%))" }}
+                        >
+                          {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
 
-                      {/* Name + email */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
-                          {a.fullName}
-                        </p>
-                        <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
-                          {a.email}
-                        </p>
-                      </div>
+                        {/* Name + email */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
+                            {a.fullName}
+                          </p>
+                          <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
+                            {a.email}
+                          </p>
+                        </div>
 
-                      {/* Right side metadata */}
-                      <div className="hidden sm:flex items-center gap-5 text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
-                        {a.ticketToken && (
-                          <span className="flex items-center gap-1">
-                            <QrCode className="w-3 h-3" />
-                            {a.ticketToken.slice(-8)}
-                          </span>
-                        )}
-                        {a.attendedAt && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {new Date(a.attendedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        )}
-                      </div>
+                        {/* Right side metadata */}
+                        <div className="hidden sm:flex items-center gap-5 text-[var(--col-primary)] font-[family-name:var(--font-mono)]">
+                          {a.attendedAt && (
+                            <span className="flex items-center gap-1.5 text-[0.9rem] font-bold tabular-nums">
+                              <Clock className="w-4 h-4" />
+                              {new Date(a.attendedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
 
-                      {/* Status badge — same as OrgRow status badge */}
-                      <span
-                        className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
-                        style={{
-                          background: "hsl(142 50% 45% / 0.1)",
-                          color: "hsl(142 50% 35%)",
-                        }}
-                      >
-                        Checked In
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )
-            ) : (
-              selected.absentAttendees.length === 0 ? (
-                <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
-                  <CheckCircle2 className="w-8 h-8 mb-3" style={{ color: "hsl(142 50% 45%)" }} />
-                  <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">
-                    {selected.totalRegistered === 0 ? "No registrations yet" : "Everyone checked in! 🎉"}
-                  </p>
-                  <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-                    {selected.totalRegistered === 0
-                      ? "No students have registered for this event yet."
-                      : "All registered attendees have been scanned in."}
-                  </p>
-                </Squircle>
-              ) : (
-                selected.absentAttendees.map((a, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      ...glassCard,
-                      borderRadius: "18px",
-                      border: "1px solid hsl(0 0% 80% / 0.25)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div className="flex items-center gap-4 p-4">
-                      {/* Avatar */}
-                      <div
-                        className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
-                        style={{ background: "linear-gradient(135deg, hsl(0 0% 55%), hsl(0 0% 65%))" }}
-                      >
-                        {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                      </div>
+                        {/* Scanned By (Volunteer) badge — subtle, theme-consistent */}
+                        <span
+                          className="flex-shrink-0 flex items-center gap-1 text-[0.58rem] font-medium px-2 py-1 rounded-full font-[family-name:var(--font-mono)] max-w-[140px]"
+                          style={{
+                            background: "hsl(0 0% 0% / 0.05)",
+                            color: "var(--col-secondary)",
+                            border: "1px solid hsl(0 0% 80% / 0.4)",
+                          }}
+                          title={`Scanned by ${a.scannedBy ?? "Event Admin"}`}
+                        >
+                          <UserCheck className="w-3 h-3 flex-shrink-0" strokeWidth={1.6} />
+                          <span className="truncate">{a.scannedBy ?? "Event Admin"}</span>
+                        </span>
 
-                      {/* Name + email */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
-                          {a.fullName}
-                        </p>
-                        <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
-                          {a.email}
-                        </p>
-                      </div>
-
-                      {/* Right side metadata */}
-                      <div className="hidden sm:flex items-center gap-5 text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
-                        {a.ticketToken && (
-                          <span className="flex items-center gap-1">
-                            <QrCode className="w-3 h-3" />
-                            {a.ticketToken.slice(-8)}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {new Date(a.registeredAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                        {/* Status badge — same as OrgRow status badge */}
+                        <span
+                          className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
+                          style={{
+                            background: "hsl(142 50% 45% / 0.1)",
+                            color: "hsl(142 50% 35%)",
+                          }}
+                        >
+                          Checked In
                         </span>
                       </div>
-
-                      {/* Status badge */}
-                      <span
-                        className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
-                        style={{
-                          background: "hsl(0 0% 0% / 0.06)",
-                          color: "var(--col-secondary)",
-                        }}
-                      >
-                        Not Arrived
-                      </span>
                     </div>
-                  </div>
-                ))
-              )
-            )}
-          </div>
+                  ))
+                )
+              ) : (
+                selected.absentAttendees.length === 0 ? (
+                  <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
+                    <CheckCircle2 className="w-8 h-8 mb-3" style={{ color: "hsl(142 50% 45%)" }} />
+                    <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">
+                      {selected.totalRegistered === 0 ? "No registrations yet" : "Everyone checked in! 🎉"}
+                    </p>
+                    <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                      {selected.totalRegistered === 0
+                        ? "No students have registered for this event yet."
+                        : "All registered attendees have been scanned in."}
+                    </p>
+                  </Squircle>
+                ) : (
+                  selected.absentAttendees.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...glassCard,
+                        borderRadius: "18px",
+                        border: "1px solid hsl(0 0% 80% / 0.25)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="flex items-center gap-4 p-4">
+                        {/* Avatar */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
+                          style={{ background: "linear-gradient(135deg, hsl(0 0% 55%), hsl(0 0% 65%))" }}
+                        >
+                          {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+
+                        {/* Name + email */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
+                            {a.fullName}
+                          </p>
+                          <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
+                            {a.email}
+                          </p>
+                        </div>
+
+                        {/* Right side metadata */}
+                        <div className="hidden sm:flex items-center gap-5 text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+                          {a.ticketToken && (
+                            <span className="flex items-center gap-1">
+                              <QrCode className="w-3 h-3" />
+                              {a.ticketToken.slice(-8)}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(a.registeredAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+
+                        {/* Status badge */}
+                        <span
+                          className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
+                          style={{
+                            background: "hsl(0 0% 0% / 0.06)",
+                            color: "var(--col-secondary)",
+                          }}
+                        >
+                          Not Arrived
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -8,7 +8,7 @@ import { X, Menu, LayoutDashboard, LogOut, User } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Explore Events", href: "/explore-events" },
-  { label: "Departments", href: "/student/communities" },
+  { label: "Departments & Communities", href: "/student/communities" },
   { label: "Clubs", href: "/student/communities" },
   { label: "About", href: "#about" },
 ];
@@ -152,7 +152,7 @@ export default function LandingNav() {
 
       {/* ── Mobile slide-over panel ──────────────────────────────────────── */}
       <div
-        className="fixed top-0 left-0 bottom-0 z-[310] w-[280px] max-w-[85vw] flex flex-col md:hidden transition-transform duration-300"
+        className="fixed top-0 left-0 bottom-0 z-[310] h-full w-[80vw] max-w-[300px] max-h-full flex flex-col overflow-x-hidden md:hidden transition-transform duration-300"
         style={{
           transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
           background: "hsl(35 20% 96% / 0.96)",
