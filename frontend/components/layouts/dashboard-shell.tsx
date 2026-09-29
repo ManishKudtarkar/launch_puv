@@ -197,7 +197,7 @@ function RoleBadge({ role }: { role?: string }) {
 function getProfileRoute(role?: string) {
   switch (role) {
     case "super_admin":
-      return "/super-admin/settings";
+      return "/super-admin";
     case "platform_admin":
       return "/platform-admin/settings";
     case "admin":

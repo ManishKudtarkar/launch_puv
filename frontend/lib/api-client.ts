@@ -103,6 +103,10 @@ export type AttendanceResponse = {
   };
   registrations: AttendanceItem[];
 };
+export type AdminEvent = Event & {
+  createdBy?: { id: string; fullName: string; email: string };
+  _count?: { registrations: number };
+};
 export type MyRegistration = {
   id: string;
   eventId: string;
@@ -353,6 +357,7 @@ export const api = {
   },
   admin: {
     events: {
+      all: () => request<AdminEvent[]>({ method: "GET", url: "/admin/events/all" }),
       pending: () => request<Event[]>({ method: "GET", url: "/admin/events/pending" }),
       get: (id: string) => request<Event>({ method: "GET", url: `/admin/events/${id}` }),
       approve: (id: string, remarks?: string) => request<Event>({ method: "PATCH", url: `/admin/events/${id}/approve`, data: { remarks } }),

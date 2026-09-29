@@ -1,397 +1,519 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Squircle } from "@squircle-js/react";
-import { useDemoStore } from "@/store/demo-store";
-import { ANALYTICS, ALL_USERS, ORGANIZATIONS } from "@/constants/mock-data";
+import { api, getApiErrorMessage, type Event, type AdminEvent, type AttendanceResponse } from "@/lib/api-client";
 import {
   Users,
-  CalendarDays,
-  TrendingUp,
-  Building2,
   Target,
-  GraduationCap,
-  Shield,
+  QrCode,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  BarChart3,
+  ChevronDown,
+  Loader2,
+  RefreshCw,
+  UserCheck,
 } from "lucide-react";
 
+// ── Exact same glassCard constant used in /admin/organizations ───────────────
+const glassCard = {
+  background: "hsl(0 0% 96% / 0.42)",
+  backdropFilter: "blur(24px) saturate(1.4)",
+  WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+  boxShadow: "0 2px 20px var(--shadow), inset 0 1px 0 hsl(0 0% 100% / 0.6)",
+};
+
+type EventAnalytics = {
+  event: Event;
+  totalRegistered: number;
+  totalAttended: number;
+  totalAbsent: number;
+  turnoutRate: number;
+  presentAttendees: Array<{
+    ticketToken?: string;
+    attendedAt: string | null;
+    fullName: string;
+    email: string;
+    scannedBy: string | null;
+  }>;
+  absentAttendees: Array<{
+    ticketToken?: string;
+    registeredAt: string;
+    fullName: string;
+    email: string;
+  }>;
+};
+
 export default function SuperAdminAnalyticsPage() {
-  const events = useDemoStore((s) => s.events);
-  const totalRegs = events.reduce((sum, e) => sum + e.registered, 0);
-  const totalCap = events.reduce((sum, e) => sum + e.capacity, 0);
-  const avgFill = totalCap ? Math.round((totalRegs / totalCap) * 100) : 0;
-  const sorted = [...events].sort((a, b) => b.registered - a.registered);
-  const maxReg = sorted[0]?.registered || 1;
+  const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [analyticsMap, setAnalyticsMap] = useState<Record<string, EventAnalytics>>({});
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"present" | "absent">("present");
+  const [error, setError] = useState("");
 
-  const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul"];
-  const monthData = ANALYTICS.monthlyRegistrations;
-  const monthMax = Math.max(...monthData);
-
-  const glassStyle = {
-    background: "hsl(0 0% 96% / 0.42)",
-    backdropFilter: "blur(24px) saturate(1.4)",
-    WebkitBackdropFilter: "blur(24px) saturate(1.4)",
-    boxShadow: "0 2px 20px var(--shadow), inset 0 1px 0 hsl(0 0% 100% / 0.6)",
+  // ── Load events ──────────────────────────────────────────────────────────────
+  const loadEvents = () => {
+    setLoadingEvents(true);
+    setError("");
+    // Platform-wide: every event from every admin (Super Admin only endpoint)
+    api.admin.events
+      .all()
+      .then((evs) => {
+        setEvents(evs);
+        if (evs.length > 0) setSelectedEventId(evs[0].id);
+      })
+      .catch((e) => setError(getApiErrorMessage(e)))
+      .finally(() => setLoadingEvents(false));
   };
 
-  const stats = [
-    { label: "Total Users", value: ANALYTICS.totalUsers.toLocaleString(), icon: Users, color: "var(--info)" },
-    { label: "Total Events", value: ANALYTICS.totalEvents, icon: CalendarDays, color: "var(--accent)" },
-    { label: "Registrations", value: ANALYTICS.totalRegistrations.toLocaleString(), icon: TrendingUp, color: "var(--positive)" },
-    { label: "Attendance Rate", value: `${ANALYTICS.attendanceRate}%`, icon: Target, color: "var(--warning)" },
-  ];
+  useEffect(() => { loadEvents(); }, []);
 
-  // SVG line chart
-  const chartW = 100;
-  const chartH = 100;
-  const padY = 8;
-  const points = monthData.map((val, i) => {
-    const x = (i / (monthData.length - 1)) * chartW;
-    const y = chartH - padY - ((val / monthMax) * (chartH - padY * 2));
-    return { x, y, val };
-  });
-  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaPath = `${linePath} L ${points[points.length - 1].x} ${chartH} L ${points[0].x} ${chartH} Z`;
+  // ── Load attendance for selected event ───────────────────────────────────────
+  useEffect(() => {
+    if (!selectedEventId) return;
+    if (analyticsMap[selectedEventId]) return;
 
-  // Category breakdown
-  const categories = events.reduce<Record<string, number>>((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + 1;
-    return acc;
-  }, {});
-  const catEntries = Object.entries(categories).sort((a, b) => b[1] - a[1]);
-  const catTotal = catEntries.reduce((s, [, v]) => s + v, 0);
+    setLoadingAnalytics(true);
+    api.events.attendance
+      .list(selectedEventId)
+      .then((res: AttendanceResponse) => {
+        const totalRegistered = res.metrics.totalRegistered;
+        const totalAttended = res.metrics.totalCheckedIn;
+        const totalAbsent = totalRegistered - totalAttended;
+        const turnoutRate = totalRegistered > 0
+          ? parseFloat(((totalAttended / totalRegistered) * 100).toFixed(1))
+          : 0;
 
-  // Status donut
-  const statuses = events.reduce<Record<string, number>>((acc, e) => {
-    acc[e.status] = (acc[e.status] || 0) + 1;
-    return acc;
-  }, {});
-  const statusEntries = Object.entries(statuses);
-  const statusColors: Record<string, string> = {
-    published: "var(--col-primary)",
-    pending_approval: "#FBBF24",
-    completed: "#999999",
-    cancelled: "#F87171",
-    draft: "#D1D5DB",
-  };
-  const statusLabels: Record<string, string> = {
-    published: "Published",
-    pending_approval: "Pending",
-    completed: "Completed",
-    cancelled: "Cancelled",
-    draft: "Draft",
-  };
+        const presentAttendees = res.registrations
+          .filter((r) => r.checkedInAt !== null)
+          .sort((a, b) => {
+            const ta = a.checkedInAt ? new Date(a.checkedInAt).getTime() : 0;
+            const tb = b.checkedInAt ? new Date(b.checkedInAt).getTime() : 0;
+            return tb - ta;
+          })
+          .map((r) => ({
+            ticketToken: r.ticketToken,
+            attendedAt: r.checkedInAt ?? null,
+            fullName: r.attendeeName,
+            email: r.attendeeEmail,
+            scannedBy: r.checkedInByName ?? null,
+          }));
 
-  // User role breakdown
-  const roleCounts = ALL_USERS.reduce<Record<string, number>>((acc, u) => {
-    acc[u.role] = (acc[u.role] || 0) + 1;
-    return acc;
-  }, {});
-  const roleColors: Record<string, { color: string; icon: typeof Users }> = {
-    student: { color: "hsl(200 70% 50%)", icon: GraduationCap },
-    admin: { color: "hsl(270 50% 55%)", icon: Shield },
-    super_admin: { color: "var(--accent)", icon: Shield },
-    platform_admin: { color: "hsl(0 60% 55%)", icon: Shield },
-  };
-  const roleLabels: Record<string, string> = {
-    student: "Students",
-    admin: "Admins",
-    super_admin: "Super Admins",
-    platform_admin: "Platform Admins",
-  };
+        const absentAttendees = res.registrations
+          .filter((r) => r.checkedInAt === null)
+          .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
+          .map((r) => ({
+            ticketToken: r.ticketToken,
+            registeredAt: r.registeredAt,
+            fullName: r.attendeeName,
+            email: r.attendeeEmail,
+          }));
 
-  // Org stats
-  const activeOrgs = ORGANIZATIONS.filter((o) => o.status === "active");
+        setAnalyticsMap((prev) => ({
+          ...prev,
+          [selectedEventId]: {
+            event: res.event as Event,
+            totalRegistered,
+            totalAttended,
+            totalAbsent,
+            turnoutRate,
+            presentAttendees,
+            absentAttendees,
+          },
+        }));
+      })
+      .catch(() => {
+        const ev = events.find((e) => e.id === selectedEventId);
+        if (ev) {
+          setAnalyticsMap((prev) => ({
+            ...prev,
+            [selectedEventId]: {
+              event: ev,
+              totalRegistered: 0,
+              totalAttended: 0,
+              totalAbsent: 0,
+              turnoutRate: 0,
+              presentAttendees: [],
+              absentAttendees: [],
+            },
+          }));
+        }
+      })
+      .finally(() => setLoadingAnalytics(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEventId, events]);
+
+  useEffect(() => { setActiveTab("present"); }, [selectedEventId]);
+
+  const selected = analyticsMap[selectedEventId];
+  const selectedEvent = events.find((e) => e.id === selectedEventId);
+
+  const loading = loadingEvents || loadingAnalytics;
 
   return (
     <div>
-      {/* Header */}
+      {/* ── Page header — matches /admin/organizations exactly ─────────────── */}
       <div className="mb-8">
-        <h1 className="text-[clamp(1.4rem,2.5vw,1.8rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
+        <p className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-2">
+          Super Admin View
+        </p>
+        <h1 className="text-[clamp(1.5rem,3vw,2rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
           Analytics
-          <span className="text-[var(--accent)] font-[family-name:var(--font-cursive)] font-normal text-[0.7em]"> .</span>
+          <span className="text-[var(--accent)] font-[family-name:var(--font-cursive)] font-normal text-[0.7em]">
+            {" "}.
+          </span>
         </h1>
         <p className="mt-2 text-[0.84rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
-          Platform-wide metrics and insights.
+          Real-time attendance analytics for every event, across all admins.
         </p>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
-          return (
-            <Squircle key={stat.label} cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassStyle}>
-              <div className="flex items-start justify-between mb-3">
-                <div className="w-9 h-9 rounded-full border flex items-center justify-center" style={{ borderColor: stat.color }}>
-                  <Icon className="w-[15px] h-[15px]" style={{ color: stat.color }} strokeWidth={1.5} />
-                </div>
-              </div>
-              <p className="text-[1.8rem] font-semibold tracking-[-0.03em] leading-none text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
-                {stat.value}
-              </p>
-              <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mt-1.5 uppercase tracking-[0.1em]">
-                {stat.label}
-              </p>
-            </Squircle>
-          );
-        })}
-      </div>
-
-      {/* Two-column charts */}
-      <div className="grid gap-6 lg:grid-cols-2 mb-6">
-        {/* Monthly Registrations — line chart */}
-        <Squircle cornerRadius={24} cornerSmoothing={1} className="p-6" style={glassStyle}>
-          <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-6">
-            Monthly Registrations
-          </h2>
-          <div className="relative">
-            <svg viewBox={`0 0 ${chartW} ${chartH + 16}`} className="w-full" preserveAspectRatio="none" style={{ height: "180px" }}>
-              {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-                const y = chartH - padY - frac * (chartH - padY * 2);
-                return <line key={frac} x1={0} y1={y} x2={chartW} y2={y} stroke="hsl(0 0% 80% / 0.25)" strokeWidth="0.3" />;
-              })}
-              <path d={areaPath} fill="url(#saAreaGrad)" />
-              <path d={linePath} fill="none" stroke="var(--col-primary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              {points.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--bg)" stroke="var(--col-primary)" strokeWidth="1.5" />
-              ))}
-              {points.map((p, i) => (
-                <text key={`l-${i}`} x={p.x} y={chartH + 12} textAnchor="middle" fontSize="4" fill="var(--col-dim)" fontFamily="var(--font-mono)">
-                  {monthLabels[i]}
-                </text>
-              ))}
-              <defs>
-                <linearGradient id="saAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--col-primary)" stopOpacity="0.12" />
-                  <stop offset="100%" stopColor="var(--col-primary)" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="flex items-center justify-between mt-3">
-              <span className="text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Low: {Math.min(...monthData)}</span>
-              <span className="text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Peak: {monthMax}</span>
-            </div>
-          </div>
-        </Squircle>
-
-        {/* Event Status — donut chart */}
-        <Squircle cornerRadius={24} cornerSmoothing={1} className="p-6" style={glassStyle}>
-          <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-6">
-            Event Status
-          </h2>
-          <div className="flex items-center gap-8">
-            <div className="relative w-[130px] h-[130px] flex-shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                {(() => {
-                  let offset = 0;
-                  return statusEntries.map(([status, count]) => {
-                    const pct = (count / events.length) * 100;
-                    const dash = (pct / 100) * 100;
-                    const el = (
-                      <circle key={status} cx="18" cy="18" r="15.5" fill="none"
-                        stroke={statusColors[status] || "#D1D5DB"} strokeWidth="4"
-                        strokeDasharray={`${dash} ${100 - dash}`}
-                        strokeDashoffset={-offset} strokeLinecap="round" />
-                    );
-                    offset += dash;
-                    return el;
-                  });
-                })()}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-[1.3rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] leading-none">
-                  {events.length}
-                </p>
-                <p className="text-[0.5rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-[0.1em] mt-0.5">
-                  Events
-                </p>
+      {/* ── Stat cards — same pattern as /admin/organizations ──────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {[
+          { label: "Registered", value: selected?.totalRegistered ?? 0, Icon: Users, color: "var(--accent)" },
+          { label: "Attended", value: selected?.totalAttended ?? 0, Icon: CheckCircle2, color: "hsl(142 50% 40%)" },
+          { label: "Absent", value: selected?.totalAbsent ?? 0, Icon: XCircle, color: "#F87171" },
+          { label: "Turnout Rate", value: selected ? `${selected.turnoutRate}%` : "—", Icon: Target, color: "hsl(38 90% 50%)" },
+        ].map((stat) => (
+          <Squircle key={stat.label} cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassCard}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-9 h-9 rounded-full border flex items-center justify-center" style={{ borderColor: stat.color }}>
+                <stat.Icon className="w-[15px] h-[15px]" style={{ color: stat.color }} strokeWidth={1.5} />
               </div>
             </div>
-            <div className="space-y-3 flex-1">
-              {statusEntries.map(([status, count]) => (
-                <div key={status} className="flex items-center gap-3">
-                  <div className="w-[8px] h-[8px] rounded-full flex-shrink-0" style={{ background: statusColors[status] || "#D1D5DB" }} />
-                  <span className="text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] flex-1">
-                    {statusLabels[status] || status}
-                  </span>
-                  <span className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
-                    {count}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Squircle>
+            <p className="text-[1.8rem] font-semibold tracking-[-0.03em] leading-none text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
+              {loading ? "—" : stat.value}
+            </p>
+            <p className="text-[0.68rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mt-1.5 uppercase tracking-[0.1em]">
+              {stat.label}
+            </p>
+          </Squircle>
+        ))}
       </div>
 
-      {/* Bottom row */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Top events */}
-        <div className="space-y-6">
-          <Squircle cornerRadius={24} cornerSmoothing={1} className="p-6" style={glassStyle}>
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-5">
-              Top Events by Registrations
-            </h2>
-            <div className="space-y-4">
-              {sorted.slice(0, 5).map((event, i) => {
-                const pct = Math.round((event.registered / maxReg) * 100);
-                const fillPct = Math.round((event.registered / event.capacity) * 100);
-                return (
-                  <div key={event.id}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-[0.8rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate flex-1 mr-3">
-                        {event.title}
-                      </p>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className="text-[0.72rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
-                          {event.registered}
-                        </span>
-                        <span className="text-[0.6rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">/ {event.capacity}</span>
-                      </div>
-                    </div>
-                    <div className="h-[6px] rounded-full bg-[hsl(0_0%_85%_/_0.3)] overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{
-                          width: `${pct}%`,
-                          background: i === 0 ? "var(--col-primary)" : fillPct >= 90 ? "var(--accent)" : `hsl(0 0% ${35 + i * 10}%)`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Squircle>
-
-          {/* Organizations performance */}
-          <Squircle cornerRadius={24} cornerSmoothing={1} className="p-6" style={glassStyle}>
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-5">
-              Organization Activity
-            </h2>
-            <div className="space-y-3.5">
-              {ORGANIZATIONS.sort((a, b) => b.events - a.events).map((org) => {
-                const maxEvents = Math.max(...ORGANIZATIONS.map((o) => o.events));
-                const initials = org.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
-                return (
-                  <div key={org.id} className="flex items-center gap-3">
-                    <Squircle
-                      cornerRadius={8}
-                      cornerSmoothing={1}
-                      className="w-7 h-7 flex items-center justify-center text-white text-[0.42rem] font-bold font-[family-name:var(--font-display)] flex-shrink-0"
-                      style={{ background: "linear-gradient(135deg, var(--col-primary), hsl(0 0% 40%))" }}
-                    >
-                      {initials}
-                    </Squircle>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[0.76rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-ui)] truncate">{org.name}</span>
-                        <span className="text-[0.66rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] flex-shrink-0 ml-2">
-                          {org.events} events &middot; {org.members} members
-                        </span>
-                      </div>
-                      <div className="h-[3px] rounded-full bg-[hsl(0_0%_85%_/_0.3)] overflow-hidden">
-                        <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${(org.events / maxEvents) * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Squircle>
+      {/* ── Event selector + refresh row — same style as tab+search+refresh ── */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-5 items-start sm:items-center">
+        {/* Event name display — top-left, matches org page heading style */}
+        <div className="flex-1 min-w-0">
+          {selectedEvent && (
+            <>
+              <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
+                {selectedEvent.title}
+              </p>
+              {selectedEvent.createdBy && (
+                <p className="mt-0.5 text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
+                  Created by {selectedEvent.createdBy.fullName}
+                  <span className="text-[var(--col-dim)]"> · {selectedEvent.createdBy.email}</span>
+                </p>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Right column */}
-        <div className="space-y-6">
-          {/* User role breakdown */}
-          <Squircle cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassStyle}>
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-4">
-              Users by Role
-            </h2>
-            <div className="space-y-3">
-              {Object.entries(roleCounts).map(([role, count]) => {
-                const rc = roleColors[role] || { color: "var(--col-dim)", icon: Users };
-                const RoleIcon = rc.icon;
-                return (
-                  <div key={role} className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${rc.color}15` }}>
-                      <RoleIcon className="w-[12px] h-[12px]" style={{ color: rc.color }} strokeWidth={1.5} />
-                    </div>
-                    <span className="text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] flex-1">
-                      {roleLabels[role] || role}
-                    </span>
-                    <span className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
-                      {count}
-                    </span>
-                  </div>
-                );
-              })}
+        {/* Event dropdown — styled exactly like the search bar */}
+        {!loadingEvents && events.length > 0 && (
+          <div className="relative flex-shrink-0">
+            <select
+              value={selectedEventId}
+              onChange={(e) => setSelectedEventId(e.target.value)}
+              className="appearance-none w-full pl-4 pr-10 py-2.5 text-[0.84rem] outline-none font-[family-name:var(--font-ui)] cursor-pointer"
+              style={{
+                background: "hsl(0 0% 100% / 0.5)",
+                border: "1px solid hsl(0 0% 85% / 0.5)",
+                borderRadius: "14px",
+                color: "var(--col-primary)",
+                minWidth: 220,
+              }}
+            >
+              {events.map((ev) => (
+                <option key={ev.id} value={ev.id}>
+                  {ev.title}{ev.createdBy?.fullName ? ` — ${ev.createdBy.fullName}` : ""}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-4 h-4 text-[var(--col-dim)] absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+        )}
+
+        {/* Refresh button — exact match from organizations page */}
+        <button
+          onClick={loadEvents}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-[0.72rem] font-medium px-4 py-2.5 transition-all font-[family-name:var(--font-ui)] cursor-pointer flex-shrink-0"
+          style={{
+            borderRadius: "14px",
+            background: "hsl(0 0% 100% / 0.5)",
+            border: "1px solid hsl(0 0% 85% / 0.5)",
+            color: "var(--col-secondary)",
+          }}
+        >
+          <RefreshCw className={"w-3.5 h-3.5" + (loading ? " animate-spin" : "")} />
+          Refresh
+        </button>
+      </div>
+
+      {/* ── Error ──────────────────────────────────────────────────────────── */}
+      {error && !loading && (
+        <div
+          className="p-4 rounded-[14px] text-[0.84rem] mb-4"
+          style={{
+            background: "hsl(0 60% 50% / 0.08)",
+            border: "1px solid hsl(0 60% 50% / 0.2)",
+            color: "hsl(0 60% 45%)",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {/* ── Loading spinner ─────────────────────────────────────────────────── */}
+      {loading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-[var(--accent)]" />
+        </div>
+      )}
+
+      {/* ── No events ──────────────────────────────────────────────────────── */}
+      {!loading && events.length === 0 && !error && (
+        <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
+          <BarChart3 className="w-8 h-8 mb-3 opacity-40" style={{ color: "var(--accent)" }} />
+          <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">
+            No events found
+          </p>
+          <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+            Create an event to see attendance analytics here.
+          </p>
+        </Squircle>
+      )}
+
+      {/* ── Main analytics content ─────────────────────────────────────────── */}
+      {!loading && selected && (
+        <div className="space-y-4">
+          {/* Turnout bar */}
+          <Squircle cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassCard}>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+                Attendance Rate
+              </p>
+              <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">
+                {selected.turnoutRate}%
+              </p>
+            </div>
+            <div className="h-2 rounded-full bg-[hsl(0_0%_85%_/_0.35)] overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${selected.turnoutRate}%`,
+                  background:
+                    selected.turnoutRate >= 80
+                      ? "hsl(142 60% 40%)"
+                      : selected.turnoutRate >= 50
+                        ? "hsl(38 90% 50%)"
+                        : "var(--accent)",
+                }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[0.6rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">0%</span>
+              <span className="text-[0.6rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">100%</span>
             </div>
           </Squircle>
 
-          {/* Category breakdown */}
-          <Squircle cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassStyle}>
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-4">
-              By Category
-            </h2>
-            <div className="space-y-3">
-              {catEntries.map(([cat, count]) => (
-                <div key={cat} className="flex items-center gap-3">
-                  <Squircle
-                    cornerRadius={6}
-                    cornerSmoothing={1}
-                    className="px-2 py-[3px] text-[0.54rem] uppercase tracking-[0.1em] font-medium font-[family-name:var(--font-mono)] text-[var(--col-dim)] flex-shrink-0"
-                    style={{ background: "hsl(0 0% 90% / 0.5)" }}
+          {/* Tab switcher — same pattern as organizations page tabs */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <div
+              className="flex gap-1 p-1 rounded-[14px] flex-shrink-0"
+              style={{
+                background: "hsl(0 0% 100% / 0.45)",
+                border: "1px solid hsl(0 0% 85% / 0.5)",
+              }}
+            >
+              {(["present", "absent"] as const).map((tab) => {
+                const isActive = activeTab === tab;
+                const count =
+                  tab === "present"
+                    ? selected.presentAttendees.length
+                    : selected.absentAttendees.length;
+                const label = tab === "present"
+                  ? `Present (${count})`
+                  : `Absent (${count})`;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className="text-[0.72rem] font-medium px-4 py-2 transition-all duration-200 font-[family-name:var(--font-ui)] cursor-pointer"
+                    style={{
+                      borderRadius: "10px",
+                      background: isActive ? "var(--col-primary)" : "transparent",
+                      color: isActive ? "var(--bg)" : "var(--col-secondary)",
+                    }}
                   >
-                    {cat}
-                  </Squircle>
-                  <div className="flex-1 h-[3px] rounded-full bg-[hsl(0_0%_85%_/_0.3)] overflow-hidden">
-                    <div className="h-full rounded-full bg-[var(--col-primary)]" style={{ width: `${(count / catTotal) * 100}%` }} />
-                  </div>
-                  <span className="text-[0.72rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums w-5 text-right">
-                    {count}
-                  </span>
-                </div>
-              ))}
+                    {label}
+                  </button>
+                );
+              })}
             </div>
-          </Squircle>
+          </div>
 
-          {/* Capacity overview */}
-          <Squircle cornerRadius={22} cornerSmoothing={1} className="p-5" style={glassStyle}>
-            <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-4">
-              Capacity Overview
-            </h2>
-            <div className="flex items-center gap-5">
-              <div className="relative w-[80px] h-[80px] flex-shrink-0">
-                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
-                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="hsl(0 0% 85% / 0.3)" strokeWidth="3.5" />
-                  <circle cx="18" cy="18" r="15.5" fill="none"
-                    stroke={avgFill >= 80 ? "var(--accent)" : "var(--col-primary)"}
-                    strokeWidth="3.5"
-                    strokeDasharray={`${(avgFill / 100) * 97.4} 97.4`}
-                    strokeLinecap="round" />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <p className="text-[0.92rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)]">{avgFill}%</p>
-                </div>
-              </div>
-              <div className="space-y-2.5 flex-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Filled</span>
-                  <span className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">{totalRegs.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Total Capacity</span>
-                  <span className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">{totalCap.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Available</span>
-                  <span className="text-[0.78rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-mono)] tabular-nums">{(totalCap - totalRegs).toLocaleString()}</span>
-                </div>
-              </div>
+          {/* Attendee rows — same OrgRow card style ───────────────────────── */}
+          <div className="w-full overflow-x-auto">
+            <div className="space-y-3 min-w-[300px]">
+              {activeTab === "present" ? (
+                selected.presentAttendees.length === 0 ? (
+                  <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
+                    <CheckCircle2 className="w-8 h-8 mb-3 opacity-30" style={{ color: "hsl(142 50% 40%)" }} />
+                    <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">No check-ins yet</p>
+                    <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No attendees have been scanned in for this event.</p>
+                  </Squircle>
+                ) : (
+                  selected.presentAttendees.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...glassCard,
+                        borderRadius: "18px",
+                        border: "1px solid hsl(142 50% 45% / 0.2)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="flex items-center gap-4 p-4">
+                        {/* Avatar — same gradient style as OrgRow */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
+                          style={{ background: "linear-gradient(135deg, hsl(142 50% 40%), hsl(142 60% 50%))" }}
+                        >
+                          {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+
+                        {/* Name + email */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
+                            {a.fullName}
+                          </p>
+                          <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
+                            {a.email}
+                          </p>
+                        </div>
+
+                        {/* Right side metadata */}
+                        <div className="hidden sm:flex items-center gap-5 text-[var(--col-primary)] font-[family-name:var(--font-mono)]">
+                          {a.attendedAt && (
+                            <span className="flex items-center gap-1.5 text-[0.9rem] font-bold tabular-nums">
+                              <Clock className="w-4 h-4" />
+                              {new Date(a.attendedAt).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Scanned By (Volunteer) badge — subtle, theme-consistent */}
+                        <span
+                          className="flex-shrink-0 flex items-center gap-1 text-[0.58rem] font-medium px-2 py-1 rounded-full font-[family-name:var(--font-mono)] max-w-[140px]"
+                          style={{
+                            background: "hsl(0 0% 0% / 0.05)",
+                            color: "var(--col-secondary)",
+                            border: "1px solid hsl(0 0% 80% / 0.4)",
+                          }}
+                          title={`Scanned by ${a.scannedBy ?? "Event Admin"}`}
+                        >
+                          <UserCheck className="w-3 h-3 flex-shrink-0" strokeWidth={1.6} />
+                          <span className="truncate">{a.scannedBy ?? "Event Admin"}</span>
+                        </span>
+
+                        {/* Status badge — same as OrgRow status badge */}
+                        <span
+                          className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
+                          style={{
+                            background: "hsl(142 50% 45% / 0.1)",
+                            color: "hsl(142 50% 35%)",
+                          }}
+                        >
+                          Checked In
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )
+              ) : (
+                selected.absentAttendees.length === 0 ? (
+                  <Squircle cornerRadius={24} cornerSmoothing={1} className="py-16 flex flex-col items-center justify-center" style={glassCard}>
+                    <CheckCircle2 className="w-8 h-8 mb-3" style={{ color: "hsl(142 50% 45%)" }} />
+                    <p className="text-[0.92rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)] mb-1">
+                      {selected.totalRegistered === 0 ? "No registrations yet" : "Everyone checked in! 🎉"}
+                    </p>
+                    <p className="text-[0.78rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">
+                      {selected.totalRegistered === 0
+                        ? "No students have registered for this event yet."
+                        : "All registered attendees have been scanned in."}
+                    </p>
+                  </Squircle>
+                ) : (
+                  selected.absentAttendees.map((a, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...glassCard,
+                        borderRadius: "18px",
+                        border: "1px solid hsl(0 0% 80% / 0.25)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div className="flex items-center gap-4 p-4">
+                        {/* Avatar */}
+                        <div
+                          className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white text-[0.62rem] font-bold font-[family-name:var(--font-display)]"
+                          style={{ background: "linear-gradient(135deg, hsl(0 0% 55%), hsl(0 0% 65%))" }}
+                        >
+                          {a.fullName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+
+                        {/* Name + email */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[0.88rem] font-bold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">
+                            {a.fullName}
+                          </p>
+                          <p className="text-[0.72rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">
+                            {a.email}
+                          </p>
+                        </div>
+
+                        {/* Right side metadata */}
+                        <div className="hidden sm:flex items-center gap-5 text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+                          {a.ticketToken && (
+                            <span className="flex items-center gap-1">
+                              <QrCode className="w-3 h-3" />
+                              {a.ticketToken.slice(-8)}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(a.registeredAt).toLocaleDateString("en", { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+
+                        {/* Status badge */}
+                        <span
+                          className="flex-shrink-0 text-[0.5rem] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-full font-[family-name:var(--font-mono)]"
+                          style={{
+                            background: "hsl(0 0% 0% / 0.06)",
+                            color: "var(--col-secondary)",
+                          }}
+                        >
+                          Not Arrived
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )
+              )}
             </div>
-          </Squircle>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Squircle } from "@squircle-js/react";
 import { useEffect, useState } from "react";
 import { api, getApiErrorMessage, type Event, type ApiUser } from "@/lib/api-client";
 import { useDemoStore } from "@/store/demo-store";
-import { Users, CalendarDays, ShieldCheck, CheckCircle2, Bell, BarChart3, Building2 } from "lucide-react";
+import { Users, CalendarDays, ShieldCheck, CheckCircle2, BarChart3, Building2 } from "lucide-react";
 
 const statusColors: Record<string, { bg: string; text: string; label: string }> = {
   PUBLISHED: { bg: "hsl(142 50% 45% / 0.1)", text: "hsl(142 50% 35%)", label: "Published" },
@@ -152,7 +152,6 @@ export default function SuperAdminDashboard() {
                 { label: "Review Events", href: "/super-admin/events", icon: ShieldCheck, primary: true },
                 { label: "Manage Users", href: "/super-admin/users", icon: Users },
                 { label: "Organizations", href: "/super-admin/organizations", icon: Building2 },
-                { label: "Notifications", href: "/super-admin/notifications", icon: Bell },
                 { label: "Analytics", href: "/super-admin/analytics", icon: BarChart3 },
               ].map((action, i) => (
                 <Link key={action.href} href={action.href}>

@@ -28,8 +28,6 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Organizations", href: "/super-admin/organizations" },
   { label: "Event Approvals", href: "/super-admin/events" },
   { label: "Analytics", href: "/super-admin/analytics" },
-  { label: "Notifications", href: "/super-admin/notifications" },
-  { label: "Settings", href: "/super-admin/settings" },
 ];
 
 export const PLATFORM_ADMIN_NAV: NavItem[] = [
