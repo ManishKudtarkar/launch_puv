@@ -358,11 +358,11 @@ export default function VolunteerScannerPage() {
         <>
           {/* Active Event Banner & Metrics */}
           {selectedEvent && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-full">
               <Squircle
                 cornerRadius={20}
                 cornerSmoothing={1}
-                className="p-4 bg-[var(--surface)]/90 border border-[var(--line-soft)] shadow-sm md:col-span-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
+                className="p-4 bg-[var(--surface)]/90 border border-[var(--line-soft)] shadow-sm col-span-2 lg:col-span-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
               >
                 <div>
                   <div className="flex items-center gap-2 text-[0.72rem] text-[var(--accent)] font-bold uppercase font-[family-name:var(--font-mono)]">

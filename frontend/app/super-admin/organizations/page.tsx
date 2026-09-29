@@ -1200,7 +1200,7 @@ export default function SuperAdminOrganizationsPage() {
 
       {/* Stats strip */}
       {!loading && !error && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full max-w-full mb-6">
           {[
             { label: "Active Communities", value: activeCommunities, Icon: Building2, color: "var(--accent)" },
             { label: "Active Clubs", value: activeClubs, Icon: Users2, color: "hsl(220 50% 55%)" },

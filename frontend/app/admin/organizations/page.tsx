@@ -118,7 +118,7 @@ export default function AdminOrganizationsPage() {
         <p className="mt-2 text-[0.84rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">View all departments (communities) and clubs. Contact a Super Admin to create or manage organizations.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-full mb-8">
         {[
           { label: "Total Departments", value: communities.length, Icon: Building2, color: "var(--accent)" },
           { label: "Active Departments", value: activeCommunities.length, Icon: Globe, color: "hsl(142 50% 40%)" },

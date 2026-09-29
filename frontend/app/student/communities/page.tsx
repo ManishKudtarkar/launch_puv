@@ -294,7 +294,7 @@ export default function StudentCommunitiesPage() {
 
   const FILTERS: { label: string; value: Filter }[] = [
     { label: "All", value: "all" },
-    { label: "Departments", value: "communities" },
+    { label: "Communities", value: "communities" },
     { label: "Clubs", value: "clubs" },
   ];
 

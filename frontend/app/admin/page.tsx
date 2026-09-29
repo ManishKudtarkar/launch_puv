@@ -95,7 +95,7 @@ export default function AdminDashboard() {
 
       {loading && <p className="mb-6 text-[0.82rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Loading...</p>}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-full mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

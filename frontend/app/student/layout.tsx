@@ -6,6 +6,8 @@ import { Squircle } from "@squircle-js/react";
 import { useAuthStore } from "@/store/auth-store";
 import { useDemoStore } from "@/store/demo-store";
 import { AuthGuard } from "@/components/shared/auth-guard";
+import { getDashboardHref } from "@/lib/role-home";
+import DrawerAccountFooter from "@/components/shared/DrawerAccountFooter";
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
@@ -190,22 +192,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               );
             })}
           </nav>
-          {/* Drawer user row */}
-          <div className="px-3 py-4 border-t border-[hsl(0_0%_85%_/_0.4)] flex-shrink-0">
-            <div className="flex items-center gap-3 p-2.5 rounded-[13px] bg-[hsl(0_0%_100%_/_0.6)]">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[0.58rem] font-bold flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, var(--role-student), var(--accent))" }}>
-                {user?.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2) || "?"}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[0.74rem] font-medium text-[var(--col-primary)] truncate font-[family-name:var(--font-display)]">{user?.fullName}</p>
-                <p className="text-[0.58rem] text-[var(--col-dim)] truncate font-[family-name:var(--font-mono)]">{isEventAdmin ? "Event Admin" : "Participant"}</p>
-              </div>
-              <button onClick={handleLogout} className="w-7 h-7 flex items-center justify-center text-[var(--col-dim)] hover:text-[var(--col-primary)] transition-colors cursor-pointer rounded-[8px]" title="Logout">
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+          {/* Drawer footer — pinned: user summary, Dashboard, Logout */}
+          <DrawerAccountFooter
+            name={user?.fullName || "User"}
+            email={user?.email}
+            roleLabel={isEventAdmin ? "Event Admin" : "Participant"}
+            dashboardHref={getDashboardHref(user)}
+            onLogout={handleLogout}
+            onNavigate={() => setMobileDrawerOpen(false)}
+            avatarGradient="linear-gradient(135deg, var(--role-student), var(--accent))"
+          />
         </div>
 
         {/* ─── Sidebar (desktop only) ─── */}

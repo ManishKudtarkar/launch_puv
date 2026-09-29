@@ -173,7 +173,7 @@ export default function SuperAdminAnalyticsPage() {
       </div>
 
       {/* ── Stat cards — same pattern as /admin/organizations ──────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 w-full max-w-full mb-8">
         {[
           { label: "Registered", value: selected?.totalRegistered ?? 0, Icon: Users, color: "var(--accent)" },
           { label: "Attended", value: selected?.totalAttended ?? 0, Icon: CheckCircle2, color: "hsl(142 50% 40%)" },

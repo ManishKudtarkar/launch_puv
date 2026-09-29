@@ -145,32 +145,35 @@ export default function SuperAdminEventsPage() {
 
       <section>
         <h2 className="text-[0.72rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] mb-4">Published Events</h2>
-        <Squircle cornerRadius={24} cornerSmoothing={1} className="overflow-hidden" style={glassStyle}>
-          <div className="grid items-center gap-4 px-6 py-3.5" style={{ gridTemplateColumns: "1fr 140px 120px", borderBottom: "1px solid hsl(0 0% 85% / 0.3)" }}>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Event</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Date</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Status</span>
+        <Squircle cornerRadius={24} cornerSmoothing={1} className="overflow-x-auto overflow-y-hidden max-w-full" style={glassStyle}>
+          {/* On phones the table scrolls inside the card instead of widening the page */}
+          <div className="min-w-[440px]">
+            <div className="grid items-center gap-4 px-6 py-3.5" style={{ gridTemplateColumns: "1fr 140px 120px", borderBottom: "1px solid hsl(0 0% 85% / 0.3)" }}>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Event</span>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Date</span>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Status</span>
+            </div>
+            {allEvents.length === 0 && !loading && (
+              <p className="px-6 py-8 text-[0.84rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No published events.</p>
+            )}
+            {allEvents.map((event, i) => {
+              const sc = statusConfig[event.status as string] || statusConfig.DRAFT;
+              return (
+                <div key={event.id} className="grid items-center gap-4 px-6 py-4 transition-colors duration-200 hover:bg-[hsl(0_0%_100%_/_0.25)]"
+                  style={{ gridTemplateColumns: "1fr 140px 120px", ...(i < allEvents.length - 1 ? { borderBottom: "1px solid hsl(0 0% 88% / 0.25)" } : {}) }}>
+                  <div className="min-w-0">
+                    <p className="text-[0.82rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">{event.title}</p>
+                    {event.venue && <p className="text-[0.62rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)]">{event.venue as string}</p>}
+                  </div>
+                  <span className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-mono)]">{fmtDate(event.eventDate)}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-[6px] h-[6px] rounded-full flex-shrink-0" style={{ background: sc.dot }} />
+                    <span className="text-[0.72rem] font-[family-name:var(--font-ui)]" style={{ color: sc.text }}>{sc.label}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          {allEvents.length === 0 && !loading && (
-            <p className="px-6 py-8 text-[0.84rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No published events.</p>
-          )}
-          {allEvents.map((event, i) => {
-            const sc = statusConfig[event.status as string] || statusConfig.DRAFT;
-            return (
-              <div key={event.id} className="grid items-center gap-4 px-6 py-4 transition-colors duration-200 hover:bg-[hsl(0_0%_100%_/_0.25)]"
-                style={{ gridTemplateColumns: "1fr 140px 120px", ...(i < allEvents.length - 1 ? { borderBottom: "1px solid hsl(0 0% 88% / 0.25)" } : {}) }}>
-                <div className="min-w-0">
-                  <p className="text-[0.82rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">{event.title}</p>
-                  {event.venue && <p className="text-[0.62rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)]">{event.venue as string}</p>}
-                </div>
-                <span className="text-[0.74rem] text-[var(--col-secondary)] font-[family-name:var(--font-mono)]">{fmtDate(event.eventDate)}</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-[6px] h-[6px] rounded-full flex-shrink-0" style={{ background: sc.dot }} />
-                  <span className="text-[0.72rem] font-[family-name:var(--font-ui)]" style={{ color: sc.text }}>{sc.label}</span>
-                </div>
-              </div>
-            );
-          })}
         </Squircle>
       </section>
 

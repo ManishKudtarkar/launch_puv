@@ -1,13 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
-import { useDemoStore } from "@/store/demo-store";
-import { getDashboardHref } from "@/lib/role-home";
+import LandingNav from "@/components/shared/LandingNav";
 import { api, type Event as ApiEvent, getApiErrorMessage } from "@/lib/api-client";
-import { Calendar, Clock3, Filter, MapPin, Search, LogOut, LayoutDashboard, User, ArrowRight, Grid, List } from "lucide-react";
+import { Calendar, Clock3, Filter, MapPin, Search, ArrowRight, Grid, List } from "lucide-react";
 
 type TimelineFilter = "all" | "upcoming" | "ongoing" | "past";
 
@@ -51,25 +48,6 @@ function formatTimeRange(start: string, end: string) {
 
 export default function ExploreEventsPage() {
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const initialized = useAuthStore((s) => s.initialized);
-  const authLogout = useAuthStore((s) => s.logout);
-  const demoLogout = useDemoStore((s) => s.logout);
-
-  const isLoggedIn = initialized && !!user && !!accessToken;
-  const uiRole = user ? backendRoleToUiRole(user) : "student";
-  const dashboardHref = getDashboardHref(user); // the logged-in user's own dashboard
-  const roleLabel =
-    uiRole === "super_admin"
-      ? "Super Admin"
-      : uiRole === "admin"
-        ? "Event Admin"
-        : uiRole === "platform_admin"
-          ? "Platform Admin"
-          : "Student";
-
-  const [profileOpen, setProfileOpen] = useState(false);
   const [events, setEvents] = useState<ApiEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -140,82 +118,8 @@ export default function ExploreEventsPage() {
         <div className="blob blob-2" />
         <div className="blob blob-3" />
       </div>
-      {/* Navigation Header */}
-      <nav className="sticky top-0 z-[200] border-b border-[hsl(25_18%_75%_/_0.42)] bg-[hsl(35_20%_96%_/_0.78)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-4">
-          <Link href="/" className="flex items-center gap-[7px]">
-            <div className="h-[7px] w-[7px] rounded-full bg-[var(--accent)] shadow-[0_1px_4px_var(--shadow-lg)]" />
-            <span className="text-[1.1rem] leading-none">
-              <span className="font-extrabold tracking-[-0.02em] text-[var(--col-primary)] font-[family-name:var(--font-display)]">PU</span>
-              <span className="font-normal text-[var(--col-secondary)] font-[family-name:var(--font-cursive)]">verse</span>
-            </span>
-          </Link>
-
-          <div className="hidden items-center gap-8 md:flex">
-            <Link href="/explore-events" className="text-[0.82rem] font-medium text-[var(--col-primary)] font-[family-name:var(--font-display)]">Explore Events</Link>
-            <Link href="/student/communities" className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)] font-[family-name:var(--font-ui)]">Departments</Link>
-            <Link href="/student/communities?filter=clubs" className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)] font-[family-name:var(--font-ui)]">Clubs</Link>
-            <Link href="#about" className="text-[0.82rem] text-[var(--col-secondary)] hover:text-[var(--col-primary)] font-[family-name:var(--font-ui)]">About</Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {isLoggedIn && user ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setProfileOpen((open) => !open)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--col-primary)] shadow-sm transition-all hover:scale-105 cursor-pointer"
-                  aria-label="Open profile menu"
-                >
-                  <User className="h-4 w-4" />
-                </button>
-
-                {profileOpen && (
-                  <div className="absolute right-0 top-12 w-52 rounded-[20px] border border-[hsl(25_18%_75%_/_0.55)] bg-[hsl(35_20%_97%_/_0.98)] p-2.5 shadow-2xl backdrop-blur-xl z-50">
-                    <div className="px-3 py-2 border-b border-[hsl(25_18%_75%_/_0.3)] mb-1">
-                      <p className="text-[0.78rem] font-semibold text-[var(--col-primary)] truncate font-[family-name:var(--font-display)]">
-                        {user.fullName || "User"}
-                      </p>
-                      <p className="text-[0.66rem] text-[var(--col-dim)] truncate font-[family-name:var(--font-mono)]">
-                        {user.email}
-                      </p>
-                      <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[0.6rem] font-medium bg-[var(--accent)] text-white">
-                        {roleLabel}
-                      </span>
-                    </div>
-
-                    <Link
-                      href={dashboardHref}
-                      onClick={() => setProfileOpen(false)}
-                      className="flex items-center gap-2 rounded-[12px] px-3 py-2 text-[0.78rem] font-medium text-[var(--col-secondary)] hover:bg-[var(--surface)] hover:text-[var(--col-primary)] font-[family-name:var(--font-ui)]"
-                    >
-                      <LayoutDashboard className="h-4 w-4" /> Dashboard
-                    </Link>
-
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await authLogout();
-                        demoLogout();
-                        setProfileOpen(false);
-                        window.location.href = "/login";
-                      }}
-                      className="flex w-full items-center gap-2 rounded-[12px] px-3 py-2 text-left text-[0.78rem] font-medium text-[var(--col-secondary)] hover:bg-[var(--surface)] hover:text-[var(--danger)] cursor-pointer font-[family-name:var(--font-ui)]"
-                    >
-                      <LogOut className="h-4 w-4" /> Logout
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                <Link href="/login" className="rounded-full border border-[hsl(0_0%_85%_/_0.6)] px-4 py-2 text-[0.78rem] font-semibold text-[var(--col-primary)] hover:bg-[var(--surface)] font-[family-name:var(--font-display)] transition-colors">Login</Link>
-                <Link href="/register" className="rounded-full bg-[var(--col-primary)] px-4 py-2 text-[0.78rem] font-semibold text-[var(--bg)] shadow-md hover:opacity-90 font-[family-name:var(--font-display)] transition-opacity">Register</Link>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      {/* Navigation Header — shared with the landing page (same mobile hamburger + drawer) */}
+      <LandingNav />
 
       {/* Hero Header */}
       <section className="mx-auto max-w-[1280px] px-4 py-8 md:px-10">

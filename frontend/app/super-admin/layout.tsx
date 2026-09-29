@@ -6,8 +6,12 @@ import { Squircle } from "@squircle-js/react";
 import { useDemoStore } from "@/store/demo-store";
 import { useAuthStore } from "@/store/auth-store";
 import { AuthGuard } from "@/components/shared/auth-guard";
-import { useState } from "react";
+import { getDashboardHref } from "@/lib/role-home";
+import DrawerAccountFooter from "@/components/shared/DrawerAccountFooter";
+import { useEffect, useState } from "react";
 import {
+  Menu,
+  X,
   LayoutDashboard,
   Users,
   Building2,
@@ -37,8 +41,26 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
   const demoLogout = useDemoStore((s) => s.logout);
   const authLogout = useAuthStore((s) => s.logout);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
+
+  // Same active rule for desktop sidebar and mobile drawer.
+  const isNavActive = (href: string) =>
+    href === "/super-admin" ? pathname === "/super-admin" : pathname === href || pathname.startsWith(`${href}/`);
+
+  // Close the drawer with Escape, and lock background scroll while it's open.
+  useEffect(() => {
+    if (!mobileDrawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMobileDrawerOpen(false);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [mobileDrawerOpen]);
 
   const user = {
     name: authUser?.fullName || demoUser?.name || "Super Admin",
@@ -53,7 +75,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   return (
     <AuthGuard allowedRoles={["super_admin", "platform_admin"]}>
-      <div className="min-h-screen relative">
+      <div className="min-h-screen relative w-full max-w-full overflow-x-hidden">
         {/* Blob background */}
         <div className="blob-container">
           <div className="blob" style={{
@@ -83,9 +105,114 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
           }} />
         </div>
 
-        {/* Sidebar */}
+        {/* ─── Mobile top bar (below md) ─── */}
+        <div
+          className="md:hidden fixed top-0 left-0 right-0 z-[200] h-14 flex items-center justify-between px-4 border-b border-[hsl(0_0%_85%_/_0.4)]"
+          style={{ background: "hsl(0 0% 96% / 0.88)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}
+        >
+          <Link href="/" className="flex items-center gap-[7px]">
+            <div className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
+            <span className="text-[1.05rem] leading-none">
+              <span className="font-extrabold text-[var(--col-primary)] tracking-[-0.02em] font-[family-name:var(--font-display)]">PU</span>
+              <span className="font-normal text-[var(--col-secondary)] font-[family-name:var(--font-cursive)]">verse</span>
+            </span>
+          </Link>
+          <button
+            onClick={() => setMobileDrawerOpen(true)}
+            className="w-9 h-9 flex items-center justify-center rounded-[10px] text-[var(--col-primary)] hover:bg-[hsl(0_0%_0%_/_0.06)] transition-all cursor-pointer"
+            aria-label="Open navigation"
+            aria-expanded={mobileDrawerOpen}
+            aria-controls="super-admin-mobile-drawer"
+          >
+            <Menu className="w-5 h-5" strokeWidth={1.8} />
+          </button>
+        </div>
+
+        {/* ─── Mobile drawer backdrop (tap outside to close) ─── */}
+        {mobileDrawerOpen && (
+          <div
+            className="md:hidden fixed inset-0 z-[250] bg-[hsl(0_0%_10%_/_0.35)] backdrop-blur-sm"
+            onClick={() => setMobileDrawerOpen(false)}
+          />
+        )}
+
+        {/* ─── Mobile slide-over drawer — slides in from the LEFT ─── */}
+        <div
+          id="super-admin-mobile-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Super Admin navigation"
+          aria-hidden={!mobileDrawerOpen}
+          className="md:hidden fixed top-0 left-0 bottom-0 z-[260] w-[272px] max-w-[85vw] flex flex-col transition-transform duration-300"
+          style={{
+            transform: mobileDrawerOpen ? "translateX(0)" : "translateX(-100%)",
+            visibility: mobileDrawerOpen ? "visible" : "hidden",
+            transition: "transform 0.3s ease, visibility 0.3s",
+            background: "hsl(0 0% 96% / 0.96)",
+            backdropFilter: "blur(40px) saturate(1.5)",
+            WebkitBackdropFilter: "blur(40px) saturate(1.5)",
+            borderRight: "1px solid hsl(0 0% 85% / 0.5)",
+            boxShadow: "4px 0 32px hsl(0 0% 0% / 0.1)",
+          }}
+        >
+          {/* Drawer header */}
+          <div className="flex items-center justify-between px-4 h-14 border-b border-[hsl(0_0%_85%_/_0.4)] flex-shrink-0">
+            <Link href="/" className="flex items-center gap-[7px]" onClick={() => setMobileDrawerOpen(false)}>
+              <div className="w-[7px] h-[7px] rounded-full bg-[var(--accent)]" />
+              <span className="text-[1.05rem] leading-none">
+                <span className="font-extrabold text-[var(--col-primary)] tracking-[-0.02em] font-[family-name:var(--font-display)]">PU</span>
+                <span className="font-normal text-[var(--col-secondary)] font-[family-name:var(--font-cursive)]">verse</span>
+              </span>
+            </Link>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="w-8 h-8 flex items-center justify-center rounded-[9px] text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:bg-[hsl(0_0%_0%_/_0.05)] transition-all cursor-pointer"
+              aria-label="Close menu"
+            >
+              <X className="w-4 h-4" strokeWidth={1.8} />
+            </button>
+          </div>
+
+          <p className="px-6 pt-4 pb-1 text-[0.58rem] tracking-[0.2em] uppercase text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+            Super Admin
+          </p>
+
+          {/* Drawer nav — each link closes the drawer */}
+          <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-0.5">
+            {NAV_ITEMS.map((item) => {
+              const isActive = isNavActive(item.href);
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-[13px] transition-all duration-200 font-[family-name:var(--font-ui)] ${isActive ? "bg-[var(--col-primary)] text-[var(--bg)]" : "text-[var(--col-secondary)] hover:text-[var(--col-primary)] hover:bg-[hsl(0_0%_100%_/_0.6)]"}`}
+                >
+                  <div className="w-7 h-7 flex items-center justify-center flex-shrink-0 rounded-[9px]" style={{ background: isActive ? "hsl(0 0% 100% / 0.15)" : "hsl(0 0% 0% / 0.04)" }}>
+                    <Icon className="w-[14px] h-[14px]" strokeWidth={1.8} />
+                  </div>
+                  <span className="text-[0.82rem] font-medium">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Drawer footer — pinned: user summary, Dashboard, Logout */}
+          <DrawerAccountFooter
+            name={user.name}
+            email={user.email}
+            roleLabel={String(authUser?.role || "").toUpperCase() === "PLATFORM_ADMIN" ? "Platform Admin" : "Super Admin"}
+            dashboardHref={getDashboardHref(authUser)}
+            onLogout={handleLogout}
+            onNavigate={() => setMobileDrawerOpen(false)}
+            avatarGradient="linear-gradient(135deg, var(--role-super), var(--accent))"
+          />
+        </div>
+
+        {/* ─── Sidebar (desktop, md+) ─── */}
         <aside
-          className="fixed top-0 left-0 h-screen z-[200] flex flex-col overflow-hidden"
+          className="hidden md:flex fixed top-0 left-0 h-screen z-[200] flex-col overflow-hidden"
           style={{
             width: `${sidebarWidth}px`,
             transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -141,9 +268,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
           {/* Nav items */}
           <nav className="flex-1 px-2 py-5 space-y-0.5 overflow-y-auto overflow-x-hidden">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href || (item.href !== "/super-admin" && pathname.startsWith(item.href));
-              const isExactDashboard = item.href === "/super-admin" && pathname === "/super-admin";
-              const isActive = isExactDashboard || active;
+              const isActive = isNavActive(item.href);
               const Icon = item.icon;
 
               return (
@@ -229,14 +354,14 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
           </div>
         </aside>
 
-        {/* Main content */}
+        {/* Main content — full width under the mobile top bar; offset by the sidebar on md+.
+            Pure CSS (no JS resize logic) so rotating / resizing always stays correct. */}
         <main
-          className="relative z-[3] min-h-screen pt-8 pb-12 px-8"
+          className="relative z-[3] min-h-screen pt-[72px] md:pt-8 pb-12 px-4 sm:px-6 md:px-8 min-w-0 max-w-full overflow-x-hidden md:ml-[var(--sb)] md:w-[calc(100%-var(--sb))]"
           style={{
-            marginLeft: `${sidebarWidth}px`,
-            width: `calc(100% - ${sidebarWidth}px)`,
+            ["--sb" as string]: `${sidebarWidth}px`,
             transition: "margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          }}
+          } as React.CSSProperties}
         >
           <div className="max-w-[1200px] mx-auto">
             {children}

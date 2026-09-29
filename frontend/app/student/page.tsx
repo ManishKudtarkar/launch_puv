@@ -165,7 +165,7 @@ export default function StudentDashboard() {
 
         {/* Right — 2x2 stat grid + browse button */}
         <div className="lg:pr-[12%]">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-2">
+          <div className="grid grid-cols-2 gap-2.5 mt-2 w-full max-w-full">
             {stats.map((stat) => (
               <Squircle
                 key={stat.label}

@@ -146,7 +146,7 @@ export default function SuperAdminUsersPage() {
 
   return (
     <div>
-      <div className="flex items-start justify-between mb-8">
+      <div className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-[clamp(1.4rem,2.5vw,1.8rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
             Users<span className="text-[var(--accent)] font-[family-name:var(--font-cursive)] font-normal text-[0.7em]"> .</span>
@@ -168,13 +168,13 @@ export default function SuperAdminUsersPage() {
       {error && <p className="mb-5 text-[0.82rem] text-[var(--danger)] font-[family-name:var(--font-ui)]">{error}</p>}
       {loading && <p className="mb-5 text-[0.82rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">Loading users...</p>}
 
-      <div className="flex items-center gap-4 mb-7">
-        <div className="relative flex-1 max-w-[320px]">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-7">
+        <div className="relative w-full sm:flex-1 sm:max-w-[320px]">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[14px] h-[14px] text-[var(--col-dim)]" strokeWidth={1.5} />
           <input type="text" placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-[9px] text-[0.78rem] text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none transition-all duration-200 focus:ring-2 focus:ring-[var(--accent)] focus:ring-opacity-30" style={inputStyle} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {roleFilters.map((f) => {
             const count = f.value === "all" ? users.length : users.filter((u) => u.role === f.value).length;
             const active = filter === f.value;
@@ -195,53 +195,56 @@ export default function SuperAdminUsersPage() {
           <p className="text-[0.88rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)]">No users match this filter.</p>
         </Squircle>
       ) : (
-        <Squircle cornerRadius={24} cornerSmoothing={1} className="overflow-hidden" style={glassStyle}>
-          <div className="grid items-center gap-4 px-6 py-3.5" style={{ gridTemplateColumns: "1fr 200px 140px 72px", borderBottom: "1px solid hsl(0 0% 85% / 0.3)" }}>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">User</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Email</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Role</span>
-            <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] text-right">Actions</span>
-          </div>
-          {filtered.map((user, i) => {
-            const badge = roleBadge[user.role];
-            const RoleIcon = roleIcon[user.role];
-            const initials = user.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2);
-            return (
-              <div key={user.id} className="group grid items-center gap-4 px-6 py-4 transition-colors duration-200 hover:bg-[hsl(0_0%_100%_/_0.25)]"
-                style={{ gridTemplateColumns: "1fr 200px 140px 72px", ...(i < filtered.length - 1 ? { borderBottom: "1px solid hsl(0 0% 88% / 0.25)" } : {}) }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <Squircle cornerRadius={11} cornerSmoothing={1} className="w-9 h-9 flex items-center justify-center text-white text-[0.5rem] font-bold font-[family-name:var(--font-display)] flex-shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${badge.text}, var(--col-primary))` }}>{initials}</Squircle>
-                  <div className="min-w-0">
-                    <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">{user.fullName}</p>
-                    <p className="text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">{user.userType}</p>
+        <Squircle cornerRadius={24} cornerSmoothing={1} className="overflow-x-auto overflow-y-hidden max-w-full" style={glassStyle}>
+          {/* min-w keeps the fixed columns readable; on phones the table scrolls inside the card, not the page */}
+          <div className="min-w-[640px]">
+            <div className="grid items-center gap-4 px-6 py-3.5" style={{ gridTemplateColumns: "1fr 200px 140px 72px", borderBottom: "1px solid hsl(0 0% 85% / 0.3)" }}>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">User</span>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Email</span>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">Role</span>
+              <span className="text-[0.6rem] uppercase tracking-[0.16em] text-[var(--col-dim)] font-[family-name:var(--font-mono)] text-right">Actions</span>
+            </div>
+            {filtered.map((user, i) => {
+              const badge = roleBadge[user.role];
+              const RoleIcon = roleIcon[user.role];
+              const initials = user.fullName.split(" ").map((w) => w[0]).join("").slice(0, 2);
+              return (
+                <div key={user.id} className="group grid items-center gap-4 px-6 py-4 transition-colors duration-200 hover:bg-[hsl(0_0%_100%_/_0.25)]"
+                  style={{ gridTemplateColumns: "1fr 200px 140px 72px", ...(i < filtered.length - 1 ? { borderBottom: "1px solid hsl(0 0% 88% / 0.25)" } : {}) }}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Squircle cornerRadius={11} cornerSmoothing={1} className="w-9 h-9 flex items-center justify-center text-white text-[0.5rem] font-bold font-[family-name:var(--font-display)] flex-shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${badge.text}, var(--col-primary))` }}>{initials}</Squircle>
+                    <div className="min-w-0">
+                      <p className="text-[0.84rem] font-semibold text-[var(--col-primary)] font-[family-name:var(--font-display)] truncate">{user.fullName}</p>
+                      <p className="text-[0.64rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">{user.userType}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Mail className="w-[10px] h-[10px] text-[var(--col-dim)] flex-shrink-0" strokeWidth={1.5} />
+                    <span className="text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">{user.email}</span>
+                  </div>
+                  <Squircle cornerRadius={8} cornerSmoothing={1} className="inline-flex items-center gap-1.5 px-2.5 py-1 w-fit" style={{ background: badge.bg }}>
+                    <RoleIcon className="w-[10px] h-[10px]" style={{ color: badge.text }} strokeWidth={1.5} />
+                    <span className="text-[0.64rem] font-medium font-[family-name:var(--font-mono)] uppercase tracking-[0.08em]" style={{ color: badge.text }}>{BACKEND_ROLE_LABELS[user.role]}</span>
+                  </Squircle>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => { setEditUser(user); setEditRole(user.role); }}
+                      aria-label={`Edit ${user.fullName}`}
+                      className="w-8 h-8 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--col-primary)] hover:text-[var(--col-primary)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
+                      <Pencil className="w-[12px] h-[12px]" strokeWidth={1.5} />
+                    </button>
+                    {user.role !== "SUPER_ADMIN" && (
+                      <button onClick={() => setDeleteUser(user)}
+                        aria-label={`Delete ${user.fullName}`}
+                        className="w-8 h-8 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
+                        <Trash2 className="w-[12px] h-[12px]" strokeWidth={1.5} />
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 min-w-0">
-                  <Mail className="w-[10px] h-[10px] text-[var(--col-dim)] flex-shrink-0" strokeWidth={1.5} />
-                  <span className="text-[0.76rem] text-[var(--col-secondary)] font-[family-name:var(--font-ui)] truncate">{user.email}</span>
-                </div>
-                <Squircle cornerRadius={8} cornerSmoothing={1} className="inline-flex items-center gap-1.5 px-2.5 py-1 w-fit" style={{ background: badge.bg }}>
-                  <RoleIcon className="w-[10px] h-[10px]" style={{ color: badge.text }} strokeWidth={1.5} />
-                  <span className="text-[0.64rem] font-medium font-[family-name:var(--font-mono)] uppercase tracking-[0.08em]" style={{ color: badge.text }}>{BACKEND_ROLE_LABELS[user.role]}</span>
-                </Squircle>
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => { setEditUser(user); setEditRole(user.role); }}
-                    aria-label={`Edit ${user.fullName}`}
-                    className="w-8 h-8 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--col-primary)] hover:text-[var(--col-primary)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
-                    <Pencil className="w-[12px] h-[12px]" strokeWidth={1.5} />
-                  </button>
-                  {user.role !== "SUPER_ADMIN" && (
-                    <button onClick={() => setDeleteUser(user)}
-                      aria-label={`Delete ${user.fullName}`}
-                      className="w-8 h-8 rounded-full border border-[var(--line-soft)] flex items-center justify-center hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors duration-200 text-[var(--col-dim)] cursor-pointer">
-                      <Trash2 className="w-[12px] h-[12px]" strokeWidth={1.5} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </Squircle>
       )}
 
