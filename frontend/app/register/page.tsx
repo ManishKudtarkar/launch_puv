@@ -8,6 +8,7 @@ import type { UserType } from "@/types";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { useAuthStore, backendRoleToUiRole } from "@/store/auth-store";
 import { ROLE_HOME } from "@/constants/navigation";
+import { ChevronDown, Eye, EyeOff } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function RegisterPage() {
   const [userType, setUserType] = useState<UserType>("STUDENT");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (initialized && authUser && accessToken) {
@@ -47,7 +49,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center">
+    <div className="min-h-screen relative flex items-center justify-center w-full max-w-full overflow-x-hidden">
       {/* Blob background */}
       <div className="blob-container">
         <div className="blob blob-1" />
@@ -90,7 +92,7 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Full Name */}
           <div className="space-y-1.5">
-            <label htmlFor="name" className="block text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
+            <label htmlFor="fullName" className="block text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">
               Full Name
             </label>
             <Squircle cornerRadius={18} cornerSmoothing={1} className="w-full flex items-center bg-[hsl(0_0%_96%_/_0.55)] border border-[hsl(0_0%_85%_/_0.5)] pr-[5px] py-[5px] transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_3px_hsl(25_65%_45%_/_0.1)]">
@@ -98,7 +100,8 @@ export default function RegisterPage() {
                 id="fullName"
                 name="fullName"
                 type="text"
-                defaultValue="New Student"
+                placeholder="User full name"
+                autoComplete="name"
                 required
                 className="flex-1 h-10 px-4 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none"
               />
@@ -123,7 +126,8 @@ export default function RegisterPage() {
                 id="email"
                 name="email"
                 type="email"
-                defaultValue="new@pu.ac.in"
+                placeholder="student@paruluniversity.ac.in"
+                autoComplete="email"
                 required
                 className="flex-1 h-10 px-4 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none"
               />
@@ -145,28 +149,50 @@ export default function RegisterPage() {
               <input
                 id="password"
                 name="password"
-                type="password"
-                defaultValue="demo1234"
+                type={showPassword ? "text" : "password"}
+                placeholder="Minimum 8 characters"
+                autoComplete="new-password"
                 minLength={8}
                 required
-                className="flex-1 h-10 px-4 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none"
+                className="flex-1 min-w-0 h-10 px-4 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none"
               />
-              <Squircle cornerRadius={14} cornerSmoothing={1} className="w-[38px] h-[38px] border border-[var(--col-primary)]/20 flex items-center justify-center flex-shrink-0">
-                <svg viewBox="0 0 24 24" className="w-[13px] h-[13px] stroke-[var(--col-secondary)] fill-none stroke-[1.5]" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
+              {/* Show/hide toggle in the existing icon slot. type="button" so it never submits;
+                  preventDefault on mousedown keeps focus (and caret) in the input. */}
+              <Squircle cornerRadius={14} cornerSmoothing={1} className="w-[38px] h-[38px] border border-[var(--col-primary)]/20 flex-shrink-0" asChild>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                  aria-controls="password"
+                  className="flex items-center justify-center text-[var(--col-secondary)] hover:text-[var(--col-primary)] transition-colors cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+                >
+                  {showPassword ? <EyeOff className="w-[15px] h-[15px]" strokeWidth={1.6} /> : <Eye className="w-[15px] h-[15px]" strokeWidth={1.6} />}
+                </button>
               </Squircle>
             </Squircle>
           </div>
 
           <div className="space-y-1.5">
             <label htmlFor="userType" className="block text-[0.62rem] font-medium uppercase tracking-[0.18em] text-[var(--col-dim)] font-[family-name:var(--font-mono)]">User Type</label>
-            <Squircle cornerRadius={18} cornerSmoothing={1} className="w-full bg-[hsl(0_0%_96%_/_0.55)] border border-[hsl(0_0%_85%_/_0.5)]">
-              <select id="userType" name="userType" value={userType} onChange={(e) => setUserType(e.target.value as UserType)} className="w-full h-11 px-4 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none appearance-none cursor-pointer" style={{ borderRadius: "inherit" }}>
+            {/* Same shell as the other fields; the icon slot holds the dropdown chevron. */}
+            <Squircle cornerRadius={18} cornerSmoothing={1} className="relative w-full flex items-center bg-[hsl(0_0%_96%_/_0.55)] border border-[hsl(0_0%_85%_/_0.5)] pr-[5px] py-[5px] transition-all duration-200 focus-within:border-[var(--accent)] focus-within:shadow-[0_0_0_3px_hsl(25_65%_45%_/_0.1)]">
+              <select
+                id="userType"
+                name="userType"
+                value={userType}
+                onChange={(e) => setUserType(e.target.value as UserType)}
+                required
+                className="flex-1 min-w-0 h-10 pl-4 pr-12 text-[0.85rem] bg-transparent text-[var(--col-primary)] font-[family-name:var(--font-ui)] outline-none appearance-none cursor-pointer"
+              >
                 <option value="STUDENT">Student</option>
                 <option value="FACULTY">Faculty</option>
               </select>
+              {/* pointer-events-none so clicking the chevron still opens the native dropdown */}
+              <Squircle cornerRadius={14} cornerSmoothing={1} className="pointer-events-none absolute right-[5px] top-1/2 -translate-y-1/2 w-[38px] h-[38px] border border-[var(--col-primary)]/20 flex items-center justify-center">
+                <ChevronDown className="w-[15px] h-[15px] text-[var(--col-secondary)]" strokeWidth={1.6} aria-hidden="true" />
+              </Squircle>
             </Squircle>
           </div>
 
