@@ -307,7 +307,7 @@ export default function StudentCommunitiesPage() {
           Explore
         </p>
         <h1 className="text-[clamp(1.6rem,3vw,2.2rem)] font-bold tracking-[-0.03em] leading-[1.1] text-[var(--col-primary)] font-[family-name:var(--font-display)]">
-          Departments & Clubs
+          Communities & Clubs
           <span className="text-[var(--accent)] font-[family-name:var(--font-cursive)] font-normal text-[0.7em]"> .</span>
         </h1>
         <p className="mt-2 text-[0.88rem] text-[var(--col-secondary)] leading-[1.6] font-[family-name:var(--font-ui)]">
@@ -378,7 +378,7 @@ export default function StudentCommunitiesPage() {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredCommunities.map((c) => (
-                  <CommunityCard key={c.id} community={c} onFollowToggle={() => {}} />
+                  <CommunityCard key={c.id} community={c} onFollowToggle={() => { }} />
                 ))}
               </div>
             </section>
@@ -395,7 +395,7 @@ export default function StudentCommunitiesPage() {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredClubs.map((c) => (
-                  <ClubCard key={c.id} club={c} onFollowToggle={() => {}} />
+                  <ClubCard key={c.id} club={c} onFollowToggle={() => { }} />
                 ))}
               </div>
             </section>

@@ -168,6 +168,15 @@ export function clearAuthStorage() {
 
 export function getApiErrorMessage(error: unknown) {
   if (error instanceof AxiosError) {
+    // Rate limited — show a human message (and the wait time when the API sends Retry-After).
+    if (error.response?.status === 429) {
+      const retryAfter = Number(error.response.headers?.["retry-after"]);
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        const wait = retryAfter >= 60 ? `${Math.ceil(retryAfter / 60)} minute(s)` : `${Math.ceil(retryAfter)} second(s)`;
+        return `Too many attempts. Please wait ${wait} and try again.`;
+      }
+      return "Too many attempts. Please wait a few minutes and try again.";
+    }
     const data = error.response?.data as ApiError | undefined;
     const message = data?.message;
     if (Array.isArray(message)) return message.join(", ");

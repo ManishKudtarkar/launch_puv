@@ -9,7 +9,7 @@ import { X, Menu, LayoutDashboard, LogOut, User } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "Explore Events", href: "/explore-events" },
-  { label: "Departments & Communities", href: "/student/communities" },
+  { label: "Communities & Clubs", href: "/student/communities" },
   { label: "Clubs", href: "/student/communities" },
   { label: "About", href: "#about" },
 ];

@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "My Events", href: "/admin/events", icon: CalendarDays },
   { label: "Create Event", href: "/admin/events/create", icon: CalendarPlus },
-  { label: "Departments & Clubs", href: "/admin/organizations", icon: Building2 },
+  { label: "Communities & Clubs", href: "/admin/organizations", icon: Building2 },
   { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];
 

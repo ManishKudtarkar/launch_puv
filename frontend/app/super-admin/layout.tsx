@@ -22,7 +22,7 @@ import {
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/super-admin", icon: LayoutDashboard },
   { label: "Users", href: "/super-admin/users", icon: Users },
-  { label: "Departments & Clubs", href: "/super-admin/organizations", icon: Building2 },
+  { label: "Communities & Clubs", href: "/super-admin/organizations", icon: Building2 },
   { label: "Event Approvals", href: "/super-admin/events", icon: ShieldCheck },
   { label: "Analytics", href: "/super-admin/analytics", icon: BarChart3 },
 ];
