@@ -80,7 +80,9 @@ export class RegistrationsService {
         },
       });
 
-    if (existingRegistration) {
+    // Only an ACTIVE registration blocks a new one. A CANCELLED row is revived
+    // below (same unique (eventId,userId) slot) so users can re-register.
+    if (existingRegistration && existingRegistration.status === 'ACTIVE') {
       throw new ConflictException('You have already registered for this event');
     }
 
@@ -126,18 +128,30 @@ export class RegistrationsService {
 
     const ticketToken = `PUV-${(event.title || 'EV').slice(0, 3).toUpperCase()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-    const registration = await this.prisma.studentRegistration.create({
-      data: {
-        eventId,
-        userId: user.userId,
-        formVersion: registrationForm.version,
-        registrationData: registrationData as Prisma.InputJsonValue,
-        ticketToken,
-      },
-      include: {
-        event: true,
-      },
-    });
+    const registrationInput = {
+      formVersion: registrationForm.version,
+      registrationData: registrationData as Prisma.InputJsonValue,
+      status: 'ACTIVE' as const,
+      ticketToken,
+      // Reset any prior cancelled-then-revived state so it's a clean re-registration.
+      checkedInAt: null,
+      checkedInById: null,
+      scanCount: 0,
+      scanHistory: Prisma.JsonNull,
+      ticketEmailSentAt: null,
+    };
+
+    // Revive a cancelled registration in place; otherwise create a new one.
+    const registration = existingRegistration
+      ? await this.prisma.studentRegistration.update({
+          where: { id: existingRegistration.id },
+          data: registrationInput,
+          include: { event: true },
+        })
+      : await this.prisma.studentRegistration.create({
+          data: { eventId, userId: user.userId, ...registrationInput },
+          include: { event: true },
+        });
 
     // Dispatch the confirmation email according to the event's ticket-release
     // timing. Everything here is fire-and-forget so a slow/failed SMTP call
@@ -288,7 +302,8 @@ export class RegistrationsService {
         : undefined;
 
     return this.prisma.studentRegistration.findMany({
-      where: { userId: user.userId },
+      // Cancelled registrations are hidden from "My Registrations".
+      where: { userId: user.userId, status: 'ACTIVE' },
       select: {
         id: true,
         eventId: true,
@@ -320,8 +335,6 @@ export class RegistrationsService {
   // ============================================================
 
   async findMyRegistration(eventId: string, user: AuthenticatedUser) {
-    // No status filter — the student already registered when the event was PUBLISHED.
-    // Their ticket must remain accessible regardless of the event's current status.
     let registration = await this.prisma.studentRegistration.findUnique({
       where: {
         eventId_userId: {
@@ -334,7 +347,9 @@ export class RegistrationsService {
       },
     });
 
-    if (!registration) {
+    // A cancelled registration is treated as "not registered" so the event page
+    // shows the Register CTA again and the ticket/QR endpoints 404.
+    if (!registration || registration.status === 'CANCELLED') {
       throw new NotFoundException('You are not registered for this event');
     }
 
