@@ -177,7 +177,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Drawer nav */}
           <nav className="flex-1 px-2 py-2 overflow-y-auto space-y-0.5">
             {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+              const isActive =
+                pathname === item.href ||
+                (item.href !== "/admin" && item.href !== "/admin/events" && pathname.startsWith(item.href));
               const Icon = item.icon;
               return (
                 <Link key={item.href} href={item.href} onClick={() => setMobileDrawerOpen(false)}
@@ -293,7 +295,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Nav items */}
           <nav className="flex-1 px-2 py-5 space-y-0.5 overflow-y-auto overflow-x-hidden">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href || (item.href !== "/admin" && pathname.startsWith(item.href));
+              const active =
+                pathname === item.href ||
+                (item.href !== "/admin" && item.href !== "/admin/events" && pathname.startsWith(item.href));
               const isExactDashboard = item.href === "/admin" && pathname === "/admin";
               const isActive = isExactDashboard || active;
               const Icon = item.icon;
