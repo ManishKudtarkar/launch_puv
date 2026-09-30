@@ -38,7 +38,7 @@ export default function StudentRegistrationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "ACTIVE" | "CANCELLED">("all");
+  const [filter, setFilter] = useState<"all" | "ACTIVE">("all");
   const [cancelTarget, setCancelTarget] = useState<RegWithMeta | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const fetchRegistrations = async () => {
@@ -50,24 +50,15 @@ export default function StudentRegistrationsPage() {
     setError("");
 
     try {
-      const events = await api.events.list();
-      const results: RegWithMeta[] = [];
-
-      await Promise.allSettled(
-        events.map(async (ev) => {
-          try {
-            const reg = await api.events.registrations.me(ev.id);
-            if (reg && reg.id) {
-              results.push({
-                ...reg,
-                event: ev,
-              });
-            }
-          } catch {
-            // User not registered for this event
-          }
-        }),
-      );
+      // One call returns all of the user's ACTIVE registrations (cancelled ones
+      // are excluded by the backend), replacing the old per-event N+1 fetch.
+      const mine = await api.registrations.mine();
+      const results: RegWithMeta[] = mine.map((r) => ({
+        ...(r as unknown as Registration),
+        event: r.event as unknown as ApiEvent,
+        registeredAt: r.registeredAt,
+        status: r.status,
+      }));
 
       setRegistrations(results);
     } catch (e) {
@@ -82,26 +73,14 @@ export default function StudentRegistrationsPage() {
   }, [user]);
 
   const counts = useMemo(() => {
-    const active = registrations.filter(
-      (r) => (r as unknown as Record<string, string>).status !== "CANCELLED",
-    ).length;
-    const cancelled = registrations.filter(
-      (r) => (r as unknown as Record<string, string>).status === "CANCELLED",
-    ).length;
-    return {
-      all: registrations.length,
-      ACTIVE: active,
-      CANCELLED: cancelled,
-    };
+    // Only ACTIVE registrations are returned now, so "all" == active.
+    return { all: registrations.length, ACTIVE: registrations.length };
   }, [registrations]);
 
   const filteredRegistrations = useMemo(() => {
     return registrations.filter((reg) => {
-      const regStatus = (reg as unknown as Record<string, string>).status || "ACTIVE";
-      const matchFilter =
-        filter === "all" ||
-        (filter === "ACTIVE" && regStatus !== "CANCELLED") ||
-        (filter === "CANCELLED" && regStatus === "CANCELLED");
+      // All listed registrations are ACTIVE; the filter is All vs Active only.
+      const matchFilter = filter === "all" || filter === "ACTIVE";
 
       const eventTitle = reg.event?.title || "";
       const venue = reg.event?.venue || "";
@@ -167,17 +146,15 @@ export default function StudentRegistrationsPage() {
           {[
             { label: "All", value: "all" as const, count: counts.all },
             { label: "Active", value: "ACTIVE" as const, count: counts.ACTIVE },
-            { label: "Cancelled", value: "CANCELLED" as const, count: counts.CANCELLED },
           ].map((item) => (
             <button
               key={item.value}
               type="button"
               onClick={() => setFilter(item.value)}
-              className={`rounded-full border px-4 py-2 text-[0.74rem] font-semibold transition-all cursor-pointer ${
-                filter === item.value
-                  ? "border-[var(--col-primary)] bg-[var(--col-primary)] text-[var(--bg)]"
-                  : "border-[var(--line)] bg-[var(--surface)] text-[var(--col-secondary)] hover:text-[var(--col-primary)]"
-              }`}
+              className={`rounded-full border px-4 py-2 text-[0.74rem] font-semibold transition-all cursor-pointer ${filter === item.value
+                ? "border-[var(--col-primary)] bg-[var(--col-primary)] text-[var(--bg)]"
+                : "border-[var(--line)] bg-[var(--surface)] text-[var(--col-secondary)] hover:text-[var(--col-primary)]"
+                }`}
             >
               {item.label} <span className="ml-1.5 opacity-80">{item.count}</span>
             </button>
@@ -371,7 +348,7 @@ export default function StudentRegistrationsPage() {
               <strong className="text-[var(--col-primary)] font-semibold">
                 {cancelTarget.event?.title || "this event"}
               </strong>
-              ? This action cannot be undone.
+              ? You can register again later if you change your mind.
             </p>
             <div className="flex gap-2">
               <button
