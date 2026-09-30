@@ -206,7 +206,9 @@ export default function PublicEventSlugPage() {
             .me(eventId)
             .then((reg) => {
               if (!active) return;
-              setMyReg(reg);
+              // A cancelled registration counts as not-registered → show Register CTA.
+              const status = (reg as { status?: string } | null)?.status;
+              setMyReg(reg && status !== "CANCELLED" ? reg : null);
             })
             .catch(() => {
               if (!active) return;
