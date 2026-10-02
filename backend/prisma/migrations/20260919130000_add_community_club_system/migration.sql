@@ -1,6 +1,34 @@
 -- AlterTable
 ALTER TABLE "Event" ADD COLUMN "communityId" TEXT;
 ALTER TABLE "Event" ADD COLUMN "clubId" TEXT;
+ALTER TABLE "Event" ADD COLUMN "ticketReleaseMode" TEXT NOT NULL DEFAULT 'IMMEDIATE';
+ALTER TABLE "Event" ADD COLUMN "ticketReleaseHours" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "Event" ADD COLUMN "ticketReleaseCustomDate" TIMESTAMP(3);
+ALTER TABLE "Event" ADD COLUMN "scannedFieldsConfig" JSONB;
+
+ALTER TABLE "StudentRegistration" ADD COLUMN "ticketToken" TEXT;
+ALTER TABLE "StudentRegistration" ADD COLUMN "checkedInAt" TIMESTAMP(3);
+ALTER TABLE "StudentRegistration" ADD COLUMN "checkedInById" TEXT;
+ALTER TABLE "StudentRegistration" ADD COLUMN "scanCount" INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE "StudentRegistration" ADD COLUMN "scanHistory" JSONB;
+ALTER TABLE "StudentRegistration" ADD COLUMN "ticketEmailSentAt" TIMESTAMP(3);
+
+-- CreateEnum
+CREATE TYPE "EntityStatus" AS ENUM ('ACTIVE', 'INACTIVE');
+CREATE TYPE "MembershipRole" AS ENUM ('HEAD', 'CORE_MEMBER');
+CREATE TYPE "UpdateStatus" AS ENUM ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED');
+CREATE TYPE "NotificationType" AS ENUM ('INFO', 'SUCCESS', 'WARNING');
+
+-- CreateTable
+CREATE TABLE "EventVolunteer" (
+    "id" TEXT NOT NULL,
+    "eventId" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "assignedById" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "EventVolunteer_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "Community" (
@@ -11,10 +39,10 @@ CREATE TABLE "Community" (
     "fullDescription" TEXT,
     "bannerUrl" TEXT,
     "logoUrl" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "status" "EntityStatus" NOT NULL DEFAULT 'ACTIVE',
     "headId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "Community_headId_fkey" FOREIGN KEY ("headId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -28,10 +56,10 @@ CREATE TABLE "Club" (
     "fullDescription" TEXT,
     "bannerUrl" TEXT,
     "logoUrl" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "status" "EntityStatus" NOT NULL DEFAULT 'ACTIVE',
     "headId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "Club_communityId_fkey" FOREIGN KEY ("communityId") REFERENCES "Community" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT "Club_headId_fkey" FOREIGN KEY ("headId") REFERENCES "User" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
@@ -40,11 +68,11 @@ CREATE TABLE "Club" (
 CREATE TABLE "Membership" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "userId" TEXT NOT NULL,
-    "role" TEXT NOT NULL DEFAULT 'CORE_MEMBER',
+    "role" "MembershipRole" NOT NULL DEFAULT 'CORE_MEMBER',
     "communityId" TEXT,
     "clubId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "Membership_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Membership_communityId_fkey" FOREIGN KEY ("communityId") REFERENCES "Community" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Membership_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "Club" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -56,7 +84,7 @@ CREATE TABLE "Follow" (
     "userId" TEXT NOT NULL,
     "communityId" TEXT,
     "clubId" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Follow_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Follow_communityId_fkey" FOREIGN KEY ("communityId") REFERENCES "Community" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "Follow_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "Club" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -71,11 +99,11 @@ CREATE TABLE "EntityUpdate" (
     "communityId" TEXT,
     "clubId" TEXT,
     "authorId" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'DRAFT',
+    "status" "UpdateStatus" NOT NULL DEFAULT 'DRAFT',
     "reviewRemarks" TEXT,
-    "publishedAt" DATETIME,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" DATETIME NOT NULL,
+    "publishedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "EntityUpdate_communityId_fkey" FOREIGN KEY ("communityId") REFERENCES "Community" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "EntityUpdate_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "Club" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "EntityUpdate_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
@@ -87,16 +115,24 @@ CREATE TABLE "Notification" (
     "userId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
-    "type" TEXT NOT NULL DEFAULT 'INFO',
+    "type" "NotificationType" NOT NULL DEFAULT 'INFO',
     "read" BOOLEAN NOT NULL DEFAULT false,
     "link" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateIndex
 CREATE INDEX "Event_communityId_idx" ON "Event"("communityId");
 CREATE INDEX "Event_clubId_idx" ON "Event"("clubId");
+
+CREATE UNIQUE INDEX "StudentRegistration_ticketToken_key" ON "StudentRegistration"("ticketToken");
+CREATE INDEX "StudentRegistration_ticketToken_idx" ON "StudentRegistration"("ticketToken");
+CREATE INDEX "StudentRegistration_checkedInAt_idx" ON "StudentRegistration"("checkedInAt");
+
+CREATE INDEX "EventVolunteer_eventId_idx" ON "EventVolunteer"("eventId");
+CREATE INDEX "EventVolunteer_userId_idx" ON "EventVolunteer"("userId");
+CREATE UNIQUE INDEX "EventVolunteer_eventId_userId_key" ON "EventVolunteer"("eventId", "userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Community_slug_key" ON "Community"("slug");
@@ -134,3 +170,11 @@ CREATE INDEX "EntityUpdate_status_idx" ON "EntityUpdate"("status");
 CREATE INDEX "Notification_userId_idx" ON "Notification"("userId");
 CREATE INDEX "Notification_read_idx" ON "Notification"("read");
 CREATE INDEX "Notification_createdAt_idx" ON "Notification"("createdAt");
+
+-- AddForeignKey
+ALTER TABLE "Event" ADD CONSTRAINT "Event_communityId_fkey" FOREIGN KEY ("communityId") REFERENCES "Community"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Event" ADD CONSTRAINT "Event_clubId_fkey" FOREIGN KEY ("clubId") REFERENCES "Club"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "StudentRegistration" ADD CONSTRAINT "StudentRegistration_checkedInById_fkey" FOREIGN KEY ("checkedInById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "EventVolunteer" ADD CONSTRAINT "EventVolunteer_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "EventVolunteer" ADD CONSTRAINT "EventVolunteer_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "EventVolunteer" ADD CONSTRAINT "EventVolunteer_assignedById_fkey" FOREIGN KEY ("assignedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
