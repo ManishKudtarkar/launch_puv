@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -13,8 +14,12 @@ const globalForPrisma = globalThis as unknown as {
 
 function createClient(): PrismaClient {
   const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL,
-  });
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
+    rejectUnauthorized: true,
+  },
+});
 
   return new PrismaClient({
     adapter,
@@ -43,7 +48,15 @@ export class PrismaService
       super(
         // Pass the same internal config as the cached client so the
         // extends-PrismaClient pattern still works correctly.
-        { adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) },
+        {
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
+      rejectUnauthorized: true,
+    },
+  }),
+},
       );
       // Overwrite the internal engine reference with the cached one so all
       // queries go through the already-connected pool.
@@ -57,10 +70,14 @@ export class PrismaService
     }
 
     const adapter = new PrismaPg({
-      connectionString: process.env.DATABASE_URL,
-    });
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
+    rejectUnauthorized: true,
+  },
+});
 
-    super({ adapter });
+super({ adapter });
 
     if (process.env.NODE_ENV !== 'production') {
       globalForPrisma._prismaClient = this;

@@ -29,6 +29,9 @@ COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 
+# AWS RDS CA certificate bundle
+COPY rds-ca-bundle.pem ./rds-ca-bundle.pem
+
 EXPOSE 3001
 
 CMD ["sh", "-c", "npm run db:migrate:deploy && npm run start:prod"]
