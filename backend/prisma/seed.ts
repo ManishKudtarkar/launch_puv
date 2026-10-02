@@ -1,8 +1,11 @@
+import fs from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PasswordService } from '../src/modules/auth/password/password.service';
 
-process.loadEnvFile('.env');
+if (fs.existsSync('.env')) {
+  process.loadEnvFile('.env');
+}
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -31,6 +34,10 @@ function getRequiredEnvironmentVariable(name: string, trim = false): string {
 
 const adapter = new PrismaPg({
   connectionString,
+  ssl: {
+    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
+    rejectUnauthorized: true,
+  },
 });
 
 const prisma = new PrismaClient({ adapter });
