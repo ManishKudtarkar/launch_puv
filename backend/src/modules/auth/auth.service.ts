@@ -28,13 +28,55 @@ export class AuthService {
     email: string,
     password: string,
     userType: string,
+    details?: {
+      department?: string;
+      ugNumber?: string;
+      enrollmentNumber?: string;
+    },
   ) {
+    const ugNumber = details?.ugNumber?.trim() || undefined;
+    const enrollmentNumber = details?.enrollmentNumber?.trim() || undefined;
+    const department = details?.department?.trim() || undefined;
+    const hasUgNumber = Boolean(ugNumber);
+    const hasEnrollmentNumber = Boolean(enrollmentNumber);
+    const universityDomain = '@paruluniversity.ac.in';
+
+    if (details && hasUgNumber === hasEnrollmentNumber) {
+      throw new BadRequestException(
+        'Provide exactly one of ugNumber or enrollmentNumber.',
+      );
+    }
+
+    if (details && hasEnrollmentNumber && !email.toLowerCase().endsWith(universityDomain)) {
+      throw new BadRequestException(
+        `Regular student email must end with ${universityDomain}.`,
+      );
+    }
+
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
       throw new ConflictException('Email already registered');
+    }
+
+    if (ugNumber) {
+      const existingUgNumber = await this.prisma.user.findUnique({
+        where: { ugNumber },
+      });
+      if (existingUgNumber) {
+        throw new ConflictException('UG number already registered');
+      }
+    }
+
+    if (enrollmentNumber) {
+      const existingEnrollmentNumber = await this.prisma.user.findUnique({
+        where: { enrollmentNumber },
+      });
+      if (existingEnrollmentNumber) {
+        throw new ConflictException('Enrollment number already registered');
+      }
     }
 
     const passwordHash = await this.passwordService.hash(password);
@@ -47,6 +89,10 @@ export class AuthService {
         userType: userType as never,
         role: Role.PARTICIPANT,
         status: UserStatus.ACTIVE,
+        department,
+        ugNumber,
+        enrollmentNumber,
+        isVerifiedDomain: Boolean(enrollmentNumber),
       },
       select: {
         id: true,
@@ -55,6 +101,10 @@ export class AuthService {
         role: true,
         userType: true,
         status: true,
+        ugNumber: true,
+        enrollmentNumber: true,
+        department: true,
+        isVerifiedDomain: true,
         createdAt: true,
       },
     });

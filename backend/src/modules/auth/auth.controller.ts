@@ -23,6 +23,11 @@ export class AuthController {
       dto.email,
       dto.password,
       dto.userType,
+      {
+        department: dto.department,
+        ugNumber: dto.ugNumber,
+        enrollmentNumber: dto.enrollmentNumber,
+      },
     );
   }
 
