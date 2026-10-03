@@ -25,7 +25,17 @@ export type RefreshResponse = {
   refreshToken: string;
   sessionId: string;
 };
-export type RegisterRequest = { fullName: string; email: string; password: string; userType: UserType };
+export type RegisterRequest = {
+  fullName: string;
+  email: string;
+  password: string;
+  userType: UserType;
+  /** Fresher path — personal email + UG number */
+  ugNumber?: string;
+  /** Regular student path — Parul email + enrollment number */
+  enrollmentNumber?: string;
+  department?: string;
+};
 export type CreateUserRequest = { fullName: string; email: string; password: string; role: BackendRole; userType: UserType };
 export type LoginRequest = { email: string; password: string };
 export type EventStatus = "DRAFT" | "PENDING_APPROVAL" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED" | "PUBLISHED" | "COMPLETED";
@@ -268,6 +278,8 @@ export const api = {
   },
   users: {
     me: () => request<ApiUser>({ method: "GET", url: "/users/me" }),
+    upgradeAccount: (body: { officialEmail: string; enrollmentNumber: string }) =>
+      request<{ message: string; user: ApiUser }>({ method: "PATCH", url: "/users/upgrade-account", data: body }),
     list: () => request<ApiUser[]>({ method: "GET", url: "/users" }),
     create: (body: CreateUserRequest) => request<{ message: string; user: ApiUser }>({ method: "POST", url: "/users", data: body }),
     get: (id: string) => request<ApiUser>({ method: "GET", url: `/users/${id}` }),
@@ -426,4 +438,3 @@ export const api = {
   },
   health: () => request<{ status: string }>({ method: "GET", url: "/health" }),
 };
-

@@ -19,6 +19,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Role } from '../../generated/prisma/enums';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpgradeAccountDto } from './dto/upgrade-account.dto';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -44,6 +45,15 @@ export class UsersController {
   createUser(@Body() createUserDto: CreateUserDto) {
     return this.usersService.createUser(createUserDto);
   }
+  @Patch('upgrade-account')
+  @UseGuards(JwtAuthGuard)
+  upgradeAccount(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpgradeAccountDto,
+  ) {
+    return this.usersService.upgradeAccount(user.userId, dto);
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPER_ADMIN)

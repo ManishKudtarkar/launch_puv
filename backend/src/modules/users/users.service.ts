@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -8,6 +9,7 @@ import { PrismaService } from '../../database/prisma/prisma.service';
 import { Role } from '../../generated/prisma/enums';
 import { PasswordService } from '../auth/password/password.service';
 import type { CreateUserDto } from './dto/create-user.dto';
+import type { UpgradeAccountDto } from './dto/upgrade-account.dto';
 
 @Injectable()
 export class UsersService {
@@ -97,7 +99,9 @@ export class UsersService {
       );
     }
 
-    const passwordHash = await this.passwordService.hash(createUserDto.password);
+    const passwordHash = await this.passwordService.hash(
+      createUserDto.password,
+    );
 
     const user = await this.prisma.user.create({
       data: {
@@ -168,6 +172,79 @@ export class UsersService {
         updatedAt: true,
       },
     });
+  }
+
+  async upgradeAccount(userId: string, dto: UpgradeAccountDto) {
+    const PARUL_DOMAIN = '@paruluniversity.ac.in';
+
+    if (!dto.officialEmail.toLowerCase().endsWith(PARUL_DOMAIN)) {
+      throw new BadRequestException(
+        `officialEmail must be a Parul University address ending in ${PARUL_DOMAIN}.`,
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, ugNumber: true, isVerifiedDomain: true },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.isVerifiedDomain) {
+      throw new BadRequestException(
+        'This account already has a verified university domain.',
+      );
+    }
+
+    // Guard: official email must not already belong to another account.
+    const emailClash = await this.prisma.user.findUnique({
+      where: { email: dto.officialEmail },
+    });
+    if (emailClash && emailClash.id !== userId) {
+      throw new ConflictException(
+        'This official email address is already linked to another account.',
+      );
+    }
+
+    // Guard: enrollment number must not already belong to another account.
+    const enrollClash = await this.prisma.user.findUnique({
+      where: { enrollmentNumber: dto.enrollmentNumber },
+    });
+    if (enrollClash && enrollClash.id !== userId) {
+      throw new ConflictException(
+        'This Enrollment Number is already linked to another account.',
+      );
+    }
+
+    // All existing relations (StudentRegistration, Membership, Follow …)
+    // reference user.id, which doesn't change — history is fully preserved.
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        email: dto.officialEmail,
+        enrollmentNumber: dto.enrollmentNumber,
+        isVerifiedDomain: true,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        role: true,
+        userType: true,
+        status: true,
+        ugNumber: true,
+        enrollmentNumber: true,
+        department: true,
+        isVerifiedDomain: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message:
+        'Account upgraded successfully. Your event history and memberships are fully preserved.',
+      user: updated,
+    };
   }
 
   async deleteUser(userId: string) {
