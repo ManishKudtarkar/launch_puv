@@ -302,7 +302,7 @@ export default function RegisterPage() {
                   id="ugNumber"
                   name="ugNumber"
                   type="text"
-                  placeholder="e.g. UG20261042"
+                  placeholder="e.g. 26UG123456"
                   autoComplete="off"
                   required
                   pattern="^UG\d{7,}$"
