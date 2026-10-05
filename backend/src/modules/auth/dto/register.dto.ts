@@ -30,12 +30,11 @@ export class RegisterDto {
 
   // ── Fresher path ──────────────────────────────────────────────────────────
 
-  /** 1st-year fresher temporary ID, e.g. "UG20261042" */
+  /** 1st-year fresher temporary ID, e.g. "26UG123456" */
   @IsOptional()
   @IsString()
-  @Matches(/^UG\d{7,}$/i, {
-    message:
-      'ugNumber must start with UG followed by at least 7 digits (e.g. UG20261042)',
+  @Matches(/^\d{2}UG\d{6}$/, {
+    message: 'UG Number must be in the format YYUGXXXXXX (e.g., 26UG123456)',
   })
   ugNumber?: string;
 
