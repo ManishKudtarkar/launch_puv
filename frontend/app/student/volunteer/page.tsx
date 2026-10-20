@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { Squircle } from "@squircle-js/react";
-import { api, getApiErrorMessage, type Event as ApiEvent, type AttendanceItem, type ScanResult } from "@/lib/api-client";
+import { api, getApiErrorMessage, type Event as ApiEvent, type AttendanceItem, type ScanResult, type EventDay } from "@/lib/api-client";
 import { useAuthStore } from "@/store/auth-store";
 import {
   QrCode,
@@ -66,6 +66,10 @@ export default function VolunteerScannerPage() {
     scannedByMe: 0,
   });
   const [loadingAttendance, setLoadingAttendance] = useState(false);
+
+  // Event days (multi-day session dropdown)
+  const [eventDays, setEventDays] = useState<EventDay[]>([]);
+  const [selectedDayId, setSelectedDayId] = useState<string>("");
 
   // Scanner state
   const [scannerActive, setScannerActive] = useState(false);
@@ -133,6 +137,20 @@ export default function VolunteerScannerPage() {
   useEffect(() => {
     if (selectedEventId) {
       loadAttendance(selectedEventId);
+      // Fetch event days for multi-day session dropdown
+      api.events.days.list(selectedEventId)
+        .then((days) => {
+          setEventDays(days);
+          if (days.length > 0) {
+            // Auto-select today's day if it falls within the event range
+            const todayStr = new Date().toISOString().split("T")[0];
+            const todayDay = days.find((d) => d.date.split("T")[0] === todayStr);
+            setSelectedDayId(todayDay ? todayDay.id : days[0].id);
+          } else {
+            setSelectedDayId("");
+          }
+        })
+        .catch(() => setEventDays([]));
     }
   }, [selectedEventId]);
 
@@ -215,7 +233,7 @@ export default function VolunteerScannerPage() {
     setScanResult(null);
 
     try {
-      const result = await api.events.attendance.scan(selectedEventId, ticketToken);
+      const result = await api.events.attendance.scan(selectedEventId, ticketToken, selectedDayId || undefined);
       setScanResult(result);
       playSuccessBeep();
       loadAttendance(selectedEventId);
@@ -425,6 +443,39 @@ export default function VolunteerScannerPage() {
                   {metrics.scannedByMe}
                 </p>
               </Squircle>
+            </div>
+          )}
+
+          {/* ── Day Session Dropdown (multi-day events only) ── */}
+          {eventDays.length > 1 && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 rounded-[14px] bg-[var(--surface)] border border-[var(--line-soft)] shadow-sm">
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--positive)" }} />
+                <span className="text-[0.74rem] font-bold uppercase tracking-[0.1em] font-[family-name:var(--font-mono)] text-[var(--col-primary)]">
+                  Active Session:
+                </span>
+              </div>
+              <select
+                value={selectedDayId}
+                onChange={(e) => setSelectedDayId(e.target.value)}
+                className="flex-1 px-3.5 py-2 rounded-[10px] text-[0.82rem] font-semibold outline-none cursor-pointer font-[family-name:var(--font-display)] bg-[var(--surface)] border border-[var(--line-soft)] text-[var(--col-primary)]"
+              >
+                {eventDays.map((day) => (
+                  <option key={day.id} value={day.id}>
+                    {day.title ?? `Day ${day.dayNumber}`} {" · "} {new Date(`${day.date.split("T")[0]}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                  </option>
+                ))}
+              </select>
+              {selectedDayId && (() => {
+                const sel = eventDays.find((d) => d.id === selectedDayId);
+                const todayStr = new Date().toISOString().split("T")[0];
+                const isToday = sel?.date.split("T")[0] === todayStr;
+                return sel ? (
+                  <span className="shrink-0 text-[0.68rem] font-semibold px-2 py-0.5 rounded-full font-[family-name:var(--font-mono)]" style={{ background: isToday ? "var(--positive-bg)" : "hsl(0 0% 90% / 0.6)", color: isToday ? "var(--positive)" : "var(--col-secondary)", border: isToday ? "1px solid hsl(160 70% 50% / 0.3)" : "1px solid var(--line-soft)" }}>
+                    {isToday ? "📅 Today" : `Day ${sel.dayNumber}`}
+                  </span>
+                ) : null;
+              })()}
             </div>
           )}
 

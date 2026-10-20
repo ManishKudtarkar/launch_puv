@@ -54,6 +54,11 @@ model Event {
   bannerUrl   String?
 
   eventDate DateTime
+  startDate DateTime
+  endDate   DateTime
+  totalDays Int       @default(1)
+  isMultiDay Boolean  @default(false)
+
   startTime DateTime?
   endTime   DateTime?
 
@@ -82,6 +87,7 @@ model Event {
   registrations     StudentRegistration[]
   approvals         EventApproval[]
   volunteers        EventVolunteer[]
+  days              EventDay[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +99,36 @@ model Event {
   @@index([eventDate])
 }
 
+model EventDay {
+  id        String  @id @default(uuid())
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  dayNumber           Int
+  date                DateTime
+  title               String?
+  isAttendanceActive  Boolean  @default(true)
+
+  attendances EventDayAttendance[]
+  agendaItems EventAgenda[]
+
+  @@index([eventId])
+  @@index([eventId, dayNumber])
+}
+
+model EventDayAttendance {
+  id           String   @id @default(uuid())
+  eventDayId   String
+  eventDay     EventDay @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+
+  registrationId String
+  scannedAt      DateTime @default(now())
+
+  @@unique([eventDayId, registrationId])
+  @@index([eventDayId])
+  @@index([registrationId])
+}
+
 model EventAgenda {
   id           String    @id @default(uuid())
   eventId      String
@@ -102,6 +138,9 @@ model EventAgenda {
   endTime      DateTime?
   displayOrder Int
 
+  eventDayId String?
+  eventDay   EventDay? @relation(fields: [eventDayId], references: [id], onDelete: SetNull)
+
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -109,6 +148,7 @@ model EventAgenda {
 
   @@index([eventId])
   @@index([eventId, displayOrder])
+  @@index([eventDayId])
 }
 
 model EventSpeaker {

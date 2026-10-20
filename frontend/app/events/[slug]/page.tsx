@@ -131,6 +131,17 @@ export default function PublicEventSlugPage() {
   // Once true, the CTA, form and modal are all withheld (modal render is gated too).
   const isExpired = isEventExpired(event, now);
 
+  // Increment to re-trigger the data-fetch effect when the tab regains focus,
+  // so edits saved in the admin wizard are reflected without a manual refresh.
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setRefreshKey((k) => k + 1);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     let active = true;
 
@@ -225,7 +236,7 @@ export default function PublicEventSlugPage() {
     return () => {
       active = false;
     };
-  }, [routeSlug, user]);
+  }, [routeSlug, user, refreshKey]);
 
   // Open modal and pre-fill form data with user details
   const openRegistrationModal = () => {
@@ -314,14 +325,60 @@ export default function PublicEventSlugPage() {
       </div>
     );
 
-  const startD = event.startTime ? new Date(event.startTime) : new Date(event.eventDate);
-  const endD = event.endTime ? new Date(event.endTime) : null;
+  const startD = event.startDate ? new Date(event.startDate) : new Date(event.eventDate);
+  const endD = event.endDate ? new Date(event.endDate) : null;
   const fmt = (d: Date) => d.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", hour12: true });
   const dayName = startD.toLocaleDateString("en", { weekday: "short" });
   const monthShort = startD.toLocaleDateString("en", { month: "short" });
   const dayNum = startD.getDate();
   const year = startD.getFullYear();
+
+  // Extract HH:mm from UTC ISO string without timezone shift
+  const extractUtcTime = (iso: string | null | undefined): string | null => {
+    if (!iso || iso.length < 16) return null;
+    const hhmm = iso.slice(11, 16);
+    const [hh, mm] = hhmm.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) return null;
+    const h12 = hh % 12 || 12;
+    const ampm = hh < 12 ? "AM" : "PM";
+    return `${h12}:${String(mm).padStart(2, "0")} ${ampm}`;
+  };
+  const startTimeLabel = extractUtcTime(event.startTime as string | null);
+  const endTimeLabel = extractUtcTime(event.endTime as string | null);
+  const timeRangeLabel = startTimeLabel
+    ? (endTimeLabel ? `${startTimeLabel} – ${endTimeLabel}` : startTimeLabel)
+    : null;
   const isRegistered = !!myReg;
+
+  // ── Date range helpers ────────────────────────────────────
+  const evStartDate = event.startDate || event.eventDate || "";
+  const evEndDate = event.endDate || "";
+  const evIsMultiDay =
+    event.isMultiDay === true ||
+    (evStartDate && evEndDate && evStartDate.slice(0, 10) !== evEndDate.slice(0, 10));
+
+  function buildDateLabel(): string {
+    if (!evStartDate) return `${monthShort} ${dayNum}, ${year}`;
+    const sd = new Date(evStartDate);
+    if (isNaN(sd.getTime())) return `${monthShort} ${dayNum}, ${year}`;
+    if (!evIsMultiDay || !evEndDate) {
+      return sd.toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" });
+    }
+    const ed = new Date(evEndDate);
+    if (isNaN(ed.getTime())) {
+      return sd.toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" });
+    }
+    const sm = sd.toLocaleDateString("en", { month: "short" });
+    const em = ed.toLocaleDateString("en", { month: "short" });
+    const ey = ed.getFullYear();
+    if (sm === em) {
+      return `${sm} ${sd.getDate()} \u2013 ${ed.getDate()}, ${ey}`;
+    }
+    const sdFmt = sd.toLocaleDateString("en", { day: "2-digit", month: "short" });
+    const edFmt = ed.toLocaleDateString("en", { day: "2-digit", month: "short" });
+    return `${sdFmt} \u2013 ${edFmt}, ${ey}`;
+  }
+  const eventDateLabel = buildDateLabel();
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[var(--bg)]">
@@ -479,10 +536,31 @@ export default function PublicEventSlugPage() {
                 Date
               </p>
               <p className="text-[0.92rem] font-bold text-slate-900 font-[family-name:var(--font-display)] mt-0.5">
-                {monthShort} {dayNum}, {year}
+                {eventDateLabel}
               </p>
             </div>
           </Squircle>
+
+          {/* Time card — only shown when startTime was set by the admin */}
+          {timeRangeLabel && (
+            <Squircle
+              cornerRadius={20}
+              cornerSmoothing={1}
+              className="flex items-center gap-4 p-5 transition-all duration-200 bg-white/70 shadow-sm border border-slate-100"
+            >
+              <div className="w-11 h-11 rounded-[14px] bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 flex items-center justify-center flex-shrink-0 text-[#CC5F1C]">
+                <Clock className="w-5 h-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <p className="text-[0.68rem] text-slate-500 font-[family-name:var(--font-ui)] font-medium">
+                  Time
+                </p>
+                <p className="text-[0.92rem] font-bold text-slate-900 font-[family-name:var(--font-display)] mt-0.5">
+                  {timeRangeLabel}
+                </p>
+              </div>
+            </Squircle>
+          )}
 
           <Squircle
             cornerRadius={20}
@@ -540,52 +618,153 @@ export default function PublicEventSlugPage() {
               )}
             </Squircle>
 
-            {/* Schedule Highlights (Photo 1 Structure) */}
-            {agenda.length > 0 ? (
-              <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
-                <h2 className="text-[1.25rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-6">
-                  Schedule Highlights
-                </h2>
-                <div className="space-y-5">
-                  {agenda.map((item, i) => {
-                    const itemDate = new Date(item.startTime);
-                    const dayNumber = itemDate.getDate();
-                    return (
-                      <div
-                        key={item.id || i}
-                        className="flex items-start gap-5 pb-5 border-b border-slate-100 last:border-b-0 last:pb-0"
-                      >
-                        <div className="flex flex-col items-center justify-center w-14 flex-shrink-0 text-center">
-                          <span className="text-[0.62rem] font-bold uppercase tracking-[0.06em] text-[#CC5F1C] font-[family-name:var(--font-mono)]">
-                            DAY {i + 1}
-                          </span>
-                          <span className="text-[1.25rem] font-bold text-slate-800 font-[family-name:var(--font-display)] leading-tight mt-0.5">
-                            {dayNumber || (i + 1)}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1 pt-0.5 border-l border-slate-100 pl-5">
-                          <p className="text-[0.94rem] font-bold text-slate-900 font-[family-name:var(--font-display)]">
-                            {item.title}
-                          </p>
-                          <div className="flex items-center gap-2 text-[0.76rem] text-slate-500 font-[family-name:var(--font-ui)] mt-1">
-                            <span>
-                              {itemDate.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", hour12: true })}
-                              {item.endTime && ` - ${new Date(item.endTime).toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit", hour12: true })}`}
-                            </span>
-                            {event.venue && <span>| {event.venue}</span>}
-                          </div>
-                          {item.description && (
-                            <p className="text-[0.8rem] text-slate-600 leading-[1.6] font-[family-name:var(--font-ui)] mt-2">
-                              {item.description}
-                            </p>
+            {/* Schedule Highlights — grouped by day */}
+            {(() => {
+              // Filter out placeholder/blank agenda rows that were accidentally saved
+              const cleanAgenda = agenda.filter(
+                (item) => item.title && item.title.trim() !== "" && item.title.trim().toLowerCase() !== "session"
+              );
+              if (cleanAgenda.length === 0) {
+                return (
+                  <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                    <h2 className="text-[1.25rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-3">
+                      Schedule Highlights
+                    </h2>
+                    <p className="text-[0.84rem] text-slate-400 font-[family-name:var(--font-ui)] italic">
+                      No schedule details released for this event yet.
+                    </p>
+                  </Squircle>
+                );
+              }
+
+              // ── Build day-lookup map: dateStr (YYYY-MM-DD) → EventDay ─────────
+              type EventDayShape = { id: string; dayNumber: number; date: string; title?: string; isAttendanceActive: boolean };
+              const days = (event.days ?? []) as EventDayShape[];
+              const dayByDate = new Map<string, EventDayShape>();
+              days.forEach((d) => {
+                const dateKey = new Date(d.date).toISOString().slice(0, 10);
+                dayByDate.set(dateKey, d);
+              });
+
+              // ── Group agenda items by their startTime date ────────────────────
+              type GroupedDay = { dateKey: string; day: EventDayShape | null; items: typeof cleanAgenda };
+              const groupOrder: string[] = [];
+              const groups = new Map<string, GroupedDay>();
+
+              cleanAgenda.forEach((item) => {
+                const dateKey = item.startTime ? new Date(item.startTime).toISOString().slice(0, 10) : "unscheduled";
+                if (!groups.has(dateKey)) {
+                  groupOrder.push(dateKey);
+                  groups.set(dateKey, { dateKey, day: dayByDate.get(dateKey) ?? null, items: [] });
+                }
+                groups.get(dateKey)!.items.push(item);
+              });
+
+              // ── Determine if we should show day headers ───────────────────────
+              const isMultiDayAgenda = groupOrder.length > 1 || days.length > 1;
+
+              return (
+                <Squircle cornerRadius={22} cornerSmoothing={1} className="p-7 bg-white/75 shadow-sm border border-slate-100">
+                  <h2 className="text-[1.25rem] font-bold text-[#CC5F1C] font-[family-name:var(--font-display)] mb-6">
+                    Schedule Highlights
+                  </h2>
+
+                  <div className="space-y-8">
+                    {groupOrder.map((dateKey, gi) => {
+                      const group = groups.get(dateKey)!;
+                      const day = group.day;
+
+                      // Day number: use matched EventDay.dayNumber, or fallback to group index
+                      const dayNumber = day?.dayNumber ?? gi + 1;
+                      // Day title: admin-saved title (e.g. "Day 1 – Opening Ceremony") or generic
+                      const dayTitle = day?.title ?? (isMultiDayAgenda ? `Day ${dayNumber}` : null);
+
+                      return (
+                        <div key={dateKey}>
+                          {/* Day header — only shown for multi-day events */}
+                          {isMultiDayAgenda && (
+                            <div className="flex items-center gap-3 mb-4">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center justify-center rounded-lg bg-[#CC5F1C]/10 border border-[#CC5F1C]/20 px-3 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] text-[#CC5F1C] font-[family-name:var(--font-mono)]">
+                                  DAY {dayNumber}
+                                </span>
+                                {dayTitle && (
+                                  <span className="text-[0.92rem] font-bold text-slate-800 font-[family-name:var(--font-display)]">
+                                    {dayTitle}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex-1 h-px bg-slate-100" />
+                            </div>
                           )}
+
+                          {/* Agenda items for this day */}
+                          <div className="space-y-0 pl-0">
+                            {group.items.map((item, ii) => {
+                              const sessionStart = item.startTime ? new Date(item.startTime) : null;
+                              const sessionEnd = item.endTime ? new Date(item.endTime) : null;
+                              const sessionStartTime = sessionStart
+                                ? sessionStart.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit", hour12: true })
+                                : null;
+                              const sessionEndTime = sessionEnd
+                                ? sessionEnd.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit", hour12: true })
+                                : null;
+
+                              return (
+                                <div
+                                  key={item.id || `${dateKey}-${ii}`}
+                                  className="flex items-start gap-4 py-3.5 border-b border-slate-100 last:border-b-0"
+                                >
+                                  {/* Time column */}
+                                  <div className="w-[5.5rem] flex-shrink-0 pt-0.5">
+                                    {sessionStartTime ? (
+                                      <div className="text-[0.72rem] font-semibold text-[#CC5F1C] font-[family-name:var(--font-mono)] leading-tight">
+                                        <span>{sessionStartTime}</span>
+                                        {sessionEndTime && (
+                                          <span className="block text-slate-400 font-normal">{sessionEndTime}</span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-[0.7rem] text-slate-300 font-[family-name:var(--font-mono)]">TBD</span>
+                                    )}
+                                  </div>
+
+                                  {/* Divider dot */}
+                                  <div className="flex flex-col items-center pt-1.5 flex-shrink-0">
+                                    <div className="w-2 h-2 rounded-full bg-[#CC5F1C]/30 border border-[#CC5F1C]/50" />
+                                    {ii < group.items.length - 1 && (
+                                      <div className="w-px flex-1 bg-slate-100 mt-1 min-h-[1.5rem]" />
+                                    )}
+                                  </div>
+
+                                  {/* Content */}
+                                  <div className="min-w-0 flex-1 pb-1">
+                                    <p className="text-[0.9rem] font-semibold text-slate-900 font-[family-name:var(--font-display)] leading-snug">
+                                      {item.title}
+                                    </p>
+                                    {(item as { venue?: string }).venue && (
+                                      <p className="text-[0.74rem] text-slate-400 font-[family-name:var(--font-ui)] mt-0.5 flex items-center gap-1">
+                                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                                        {(item as { venue?: string }).venue}
+                                      </p>
+                                    )}
+                                    {item.description && (
+                                      <p className="text-[0.78rem] text-slate-500 leading-[1.65] font-[family-name:var(--font-ui)] mt-1">
+                                        {item.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Squircle>
-            ) : null}
+                      );
+                    })}
+                  </div>
+                </Squircle>
+              );
+            })()}
 
             {/* Speakers & Guests */}
             {speakers.length > 0 && (
@@ -679,7 +858,7 @@ export default function PublicEventSlugPage() {
                       DATE
                     </span>
                     <p className="text-[0.88rem] font-bold text-white font-[family-name:var(--font-display)]">
-                      {monthShort} {dayNum}, {year}
+                      {eventDateLabel}
                     </p>
                   </div>
                 </div>
@@ -693,7 +872,7 @@ export default function PublicEventSlugPage() {
                       VENUE
                     </span>
                     <p className="text-[0.88rem] font-bold text-white font-[family-name:var(--font-display)] truncate">
-                      {event.venue ? String(event.venue) : "PU Tech Center, Hall A"}
+                      {event.venue ? String(event.venue) : "TBD"}
                     </p>
                   </div>
                 </div>

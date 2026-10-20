@@ -13,17 +13,29 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
 
   const prismaMock = {
     event: {
-      create: jest.fn(),
+      create:     jest.fn(),
       findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
+      findFirst:  jest.fn(),
+      findMany:   jest.fn(),
+      update:     jest.fn(),
+      delete:     jest.fn(),
+    },
+    eventDay: {
+      createMany: jest.fn(),
+      deleteMany: jest.fn(),
     },
     membership: {
       findFirst: jest.fn(),
-      findMany: jest.fn(),
+      findMany:  jest.fn(),
     },
+    // Minimal $transaction stub: executes the callback with a proxy that
+    // delegates every model access back to the shared prismaMock.
+    $transaction: jest.fn().mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
+      cb({
+        event:    { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+        eventDay: { createMany: jest.fn(), deleteMany: jest.fn() },
+      }),
+    ),
   };
 
   const superAdminUser: AuthenticatedUser = {
@@ -69,9 +81,11 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
         service.create(
           {
             title: 'Conflict Event',
-            eventDate: new Date().toISOString(),
+            eventDate:   new Date().toISOString(),
+            startDate:   new Date().toISOString(),
+            endDate:     new Date().toISOString(),
             communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
-            clubId: 'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e',
+            clubId:      'b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e',
           },
           assignedStudentHead,
         ),
@@ -84,8 +98,10 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
       await expect(
         service.create(
           {
-            title: 'Unscoped Event',
+            title:     'Unscoped Event',
             eventDate: new Date().toISOString(),
+            startDate: new Date().toISOString(),
+            endDate:   new Date().toISOString(),
           },
           unassignedStudent,
         ),
@@ -98,8 +114,10 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
       await expect(
         service.create(
           {
-            title: 'Unauthorized Event',
-            eventDate: new Date().toISOString(),
+            title:       'Unauthorized Event',
+            eventDate:   new Date().toISOString(),
+            startDate:   new Date().toISOString(),
+            endDate:     new Date().toISOString(),
             communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
           },
           unassignedStudent,
@@ -108,72 +126,103 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
     });
 
     it('9. Allows participant Head/Core Team to create event for assigned entity', async () => {
+      const mockCreatedEvent = {
+        id: 'ev-1',
+        title: 'Robotics Workshop',
+        communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
+        status: 'DRAFT',
+        days: [],
+      };
+
       prismaMock.membership.findFirst.mockResolvedValue({
         id: 'mem-1',
         userId: 'student-head',
         communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
       });
-      prismaMock.event.findUnique.mockResolvedValue(null);
-      prismaMock.event.create.mockResolvedValue({
-        id: 'ev-1',
-        title: 'Robotics Workshop',
-        communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
-        status: 'DRAFT',
-      });
+      prismaMock.event.findUnique.mockResolvedValue(null); // slug check
+
+      // Make the $transaction stub actually invoke the callback with working sub-mocks
+      prismaMock.$transaction.mockImplementationOnce(
+        async (cb: (tx: unknown) => Promise<unknown>) => {
+          const txMock = {
+            event:    { create: jest.fn().mockResolvedValue(mockCreatedEvent), findUnique: jest.fn().mockResolvedValue(mockCreatedEvent) },
+            eventDay: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          };
+          return cb(txMock);
+        },
+      );
 
       const result = await service.create(
         {
-          title: 'Robotics Workshop',
-          eventDate: new Date().toISOString(),
+          title:       'Robotics Workshop',
+          eventDate:   new Date().toISOString(),
+          startDate:   new Date().toISOString(),
+          endDate:     new Date().toISOString(),
           communityId: 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d',
         },
         assignedStudentHead,
       );
 
-      expect(result.id).toBe('ev-1');
-      expect(prismaMock.event.create).toHaveBeenCalled();
+      expect(result!.id).toBe('ev-1');
     });
   });
 
   describe('Event Admin behavior preservation', () => {
     it('11. Existing Event Admin can create normal event without entity link', async () => {
-      prismaMock.event.findUnique.mockResolvedValue(null);
-      prismaMock.event.create.mockResolvedValue({
-        id: 'ev-admin-1',
-        title: 'Global Tech Conclave',
-        status: 'DRAFT',
-      });
+      const mockAdminEvent = { id: 'ev-admin-1', title: 'Global Tech Conclave', status: 'DRAFT', days: [] };
+
+      prismaMock.event.findUnique.mockResolvedValue(null); // slug check
+      prismaMock.$transaction.mockImplementationOnce(
+        async (cb: (tx: unknown) => Promise<unknown>) => {
+          const txMock = {
+            event:    { create: jest.fn().mockResolvedValue(mockAdminEvent), findUnique: jest.fn().mockResolvedValue(mockAdminEvent) },
+            eventDay: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
+          };
+          return cb(txMock);
+        },
+      );
 
       const result = await service.create(
         {
-          title: 'Global Tech Conclave',
+          title:     'Global Tech Conclave',
           eventDate: new Date().toISOString(),
+          startDate: new Date().toISOString(),
+          endDate:   new Date().toISOString(),
         },
         eventAdminUser,
       );
 
-      expect(result.id).toBe('ev-admin-1');
-      expect(prismaMock.event.create).toHaveBeenCalled();
+      expect(result!.id).toBe('ev-admin-1');
     });
   });
 
   describe('Event management scoped permissions', () => {
     it('allows participant to edit draft event for their assigned entity', async () => {
-      prismaMock.event.findUnique.mockResolvedValue({
+      const existingEvent = {
         id: 'ev-1',
         createdById: 'student-head',
         communityId: 'comm-1',
         status: 'DRAFT',
-      });
+        startDate: new Date(),
+        endDate:   new Date(),
+      };
+      const updatedEvent = { ...existingEvent, title: 'Updated Workshop', days: [] };
+
+      prismaMock.event.findUnique.mockResolvedValue(existingEvent);
       prismaMock.membership.findFirst.mockResolvedValue({
         id: 'mem-1',
         userId: 'student-head',
         communityId: 'comm-1',
       });
-      prismaMock.event.update.mockResolvedValue({
-        id: 'ev-1',
-        title: 'Updated Workshop',
-      });
+      prismaMock.$transaction.mockImplementationOnce(
+        async (cb: (tx: unknown) => Promise<unknown>) => {
+          const txMock = {
+            event:    { update: jest.fn().mockResolvedValue(updatedEvent), findUnique: jest.fn().mockResolvedValue(updatedEvent) },
+            eventDay: { createMany: jest.fn(), deleteMany: jest.fn() },
+          };
+          return cb(txMock);
+        },
+      );
 
       const result = await service.update(
         'ev-1',
@@ -181,7 +230,7 @@ describe('EventsService (Phase 2 Scoped Community/Club Events)', () => {
         assignedStudentHead,
       );
 
-      expect(result.title).toBe('Updated Workshop');
+      expect(result!.title).toBe('Updated Workshop');
     });
 
     it('rejects unauthorized student from editing an event for another entity', async () => {

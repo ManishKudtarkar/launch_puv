@@ -5,6 +5,8 @@
 
 type ExpirableEvent = {
   eventDate?: string | Date | null;
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
   startTime?: string | Date | null;
   endTime?: string | Date | null;
   status?: string | null;
@@ -20,19 +22,37 @@ const toTime = (value: string | Date | null | undefined): number | null => {
 };
 
 /**
- * Returns the moment registration closes:
- *  - endTime when set,
- *  - otherwise startTime,
- *  - otherwise the END of eventDate's day (eventDate alone is usually midnight,
- *    so closing at midnight would lock the event on its own day).
+ * Returns the moment registration closes (= the event is considered over):
+ *
+ * Priority order:
+ *  1. End of the `endDate` calendar day (23:59:59.999) — covers multi-day events
+ *     correctly so registration stays open until the last day has fully passed.
+ *  2. `endTime` field (legacy / single-day events that only set a time).
+ *  3. `startTime` — if no end is defined at all.
+ *  4. End of `eventDate`'s day (23:59:59.999) as final fallback.
  */
 export function getEventExpiryTime(event: ExpirableEvent): number | null {
+  // 1. endDate — use end of that calendar day so a multi-day event is open
+  //    for the full last day, not just until endTime on day 1.
+  const endDateRaw = event.endDate ?? event.startDate;
+  if (endDateRaw) {
+    const d = new Date(endDateRaw);
+    if (!Number.isNaN(d.getTime())) {
+      // Snap to the date-only portion (strip time component) then set to EOD.
+      const eod = new Date(d.toISOString().slice(0, 10) + "T23:59:59.999");
+      return eod.getTime();
+    }
+  }
+
+  // 2. Explicit endTime (single-day events that set a time field).
   const end = toTime(event.endTime);
   if (end !== null) return end;
 
+  // 3. startTime only — nothing better available.
   const start = toTime(event.startTime);
   if (start !== null) return start;
 
+  // 4. eventDate — end of that calendar day.
   const day = toTime(event.eventDate);
   if (day === null) return null;
   const endOfDay = new Date(day);

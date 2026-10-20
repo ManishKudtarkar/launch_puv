@@ -33,18 +33,15 @@ async function bootstrap() {
 
   // Build allowed origins from env + hardcoded fallbacks
   const allowedOrigins = [
+    process.env.FRONTEND_URL || 'http://localhost:3000',
     'http://localhost:3000',
     'https://puverse-kappa.vercel.app',
     'https://puverse.onrender.com',
   ];
 
-  const frontendUrl = process.env.FRONTEND_URL;
-  if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
-    allowedOrigins.push(frontendUrl);
-  }
-
   app.enableCors({
     origin: allowedOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     // Let the frontend read the wait time on 429 responses.
     exposedHeaders: ['Retry-After'],

@@ -167,6 +167,42 @@ export class AttendanceService {
       };
     }
 
+    // ── Per-day attendance (EventDayAttendance) ──────────────────────────────
+    if (dto.eventDayId) {
+      // Validate the EventDay belongs to this event
+      const eventDay = await this.prisma.eventDay.findFirst({
+        where: { id: dto.eventDayId, eventId: resolvedEventId },
+      });
+
+      if (!eventDay) {
+        throw new BadRequestException('Event day not found for this event.');
+      }
+
+      // Duplicate guard: one check-in per (eventDayId, registrationId)
+      const alreadyCheckedInForDay = await this.prisma.eventDayAttendance.findUnique({
+        where: {
+          eventDayId_registrationId: {
+            eventDayId: dto.eventDayId,
+            registrationId: registration.id,
+          },
+        },
+      });
+
+      if (alreadyCheckedInForDay) {
+        throw new BadRequestException(
+          `Already checked in for ${eventDay.title ?? `Day ${eventDay.dayNumber}`}. Each attendee can only be scanned once per event day.`,
+        );
+      }
+
+      // Create per-day attendance record
+      await this.prisma.eventDayAttendance.create({
+        data: {
+          eventDayId: dto.eventDayId,
+          registrationId: registration.id,
+        },
+      });
+    }
+
     return {
       success: true,
       status: alreadyCheckedIn ? 'ALREADY_CHECKED_IN' : 'CHECKED_IN',
@@ -181,11 +217,34 @@ export class AttendanceService {
       firstScannedBy: updated.checkedInBy?.fullName || volunteerName,
       visibleFields,
       scanHistory: updatedHistory,
+      ...(dto.eventDayId && { eventDayId: dto.eventDayId }),
     };
   }
 
   // ============================================================
-  // GET ATTENDANCE LIST & METRICS
+  // GET EVENT DAYS (for day-session dropdown)
+  // ============================================================
+
+  async getEventDays(eventId: string, currentUser: AuthenticatedUser) {
+    await this.verifyScannerAuthorization(eventId, currentUser);
+
+    const days = await this.prisma.eventDay.findMany({
+      where: { eventId },
+      orderBy: { dayNumber: 'asc' },
+      select: {
+        id: true,
+        dayNumber: true,
+        date: true,
+        title: true,
+        isAttendanceActive: true,
+      },
+    });
+
+    return days;
+  }
+
+  // ============================================================
+  // AUTHORIZATION HELPERS
   // ============================================================
 
   async getAttendanceList(

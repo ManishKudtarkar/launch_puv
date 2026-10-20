@@ -32,12 +32,14 @@ function getRequiredEnvironmentVariable(name: string, trim = false): string {
   return trim ? value.trim() : value;
 }
 
+const RDS_CA_PATH = '/app/rds-ca-bundle.pem';
+const sslConfig = fs.existsSync(RDS_CA_PATH)
+  ? { ca: fs.readFileSync(RDS_CA_PATH), rejectUnauthorized: true }
+  : undefined;
+
 const adapter = new PrismaPg({
   connectionString,
-  ssl: {
-    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
-    rejectUnauthorized: true,
-  },
+  ...(sslConfig ? { ssl: sslConfig } : {}),
 });
 
 const prisma = new PrismaClient({ adapter });

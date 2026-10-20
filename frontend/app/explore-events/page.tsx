@@ -21,29 +21,79 @@ function normalizeEventStatus(status?: string) {
 
 function classifyEvent(startDate: string, endDate: string): "upcoming" | "ongoing" | "past" {
   const now = new Date();
-  const start = new Date(startDate);
-  const end = new Date(endDate);
 
-  if (now < start) return "upcoming";
-  if (now >= start && now <= end) return "ongoing";
+  // Compare using date-only boundaries so a multi-day event stays "ongoing"
+  // for the entire calendar day of endDate (until midnight of that day passes).
+  const startDay = new Date(startDate.slice(0, 10) + "T00:00:00");
+  // End of the end-date calendar day (23:59:59.999)
+  const endDayClose = new Date(endDate.slice(0, 10) + "T23:59:59.999");
+
+  if (now < startDay) return "upcoming";
+  if (now >= startDay && now <= endDayClose) return "ongoing";
   return "past";
 }
 
-function formatLongDate(item: string) {
-  if (!item) return "TBA";
+function formatShortDate(item: string) {
+  if (!item) return "";
   const d = new Date(item);
-  if (isNaN(d.getTime())) return "TBA";
-  return d.toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" });
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en", { day: "2-digit", month: "short" });
 }
 
-function formatTimeRange(start: string, end: string) {
+function formatEventDate(event: ApiEvent): string {
+  const start = event.startDate || event.eventDate || "";
+  const end = event.endDate || "";
+  const isMultiDay = event.isMultiDay === true || (start && end && start.slice(0, 10) !== end.slice(0, 10));
+
   if (!start) return "TBA";
-  const startDate = new Date(start);
-  if (isNaN(startDate.getTime())) return "TBA";
-  const endDate = new Date(end || start);
-  const startLabel = startDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  const endLabel = endDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${startLabel} - ${endLabel}`;
+
+  const startD = new Date(start);
+  if (isNaN(startD.getTime())) return "TBA";
+
+  if (!isMultiDay || !end) {
+    return startD.toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  const endD = new Date(end);
+  if (isNaN(endD.getTime())) {
+    return startD.toLocaleDateString("en", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  const startMonth = startD.toLocaleDateString("en", { month: "short" });
+  const endMonth = endD.toLocaleDateString("en", { month: "short" });
+  const endYear = endD.getFullYear();
+  const startDay = startD.getDate();
+  const endDay = endD.getDate();
+
+  if (startMonth === endMonth) {
+    return `${startMonth} ${startDay} – ${endDay}, ${endYear}`;
+  }
+  return `${formatShortDate(start)} – ${formatShortDate(end)}, ${endYear}`;
+}
+
+function formatTimeRange(startIso: string, endIso: string) {
+  if (!startIso) return "TBA";
+
+  // Extract HH:mm directly from the UTC ISO string so the time the admin
+  // typed (e.g. 09:00) is shown as-is, regardless of the viewer's timezone.
+  const extractTime = (iso: string): string | null => {
+    // ISO format: "2026-10-18T09:00:00.000Z" → take chars 11-15
+    if (iso.length >= 16) {
+      const hhmm = iso.slice(11, 16); // "09:00"
+      const [hh, mm] = hhmm.split(":").map(Number);
+      if (!isNaN(hh) && !isNaN(mm)) {
+        const h12 = hh % 12 || 12;
+        const ampm = hh < 12 ? "AM" : "PM";
+        return `${h12}:${String(mm).padStart(2, "0")} ${ampm}`;
+      }
+    }
+    return null;
+  };
+
+  const startLabel = extractTime(startIso);
+  if (!startLabel) return "TBA";
+  const endLabel = endIso ? extractTime(endIso) : null;
+  return endLabel ? `${startLabel} – ${endLabel}` : startLabel;
 }
 
 export default function ExploreEventsPage() {
@@ -58,22 +108,37 @@ export default function ExploreEventsPage() {
 
   useEffect(() => {
     let active = true;
-    api.events
-      .list()
-      .then((items) => {
-        if (!active) return;
-        setEvents(items);
-      })
-      .catch((error) => {
-        if (!active) return;
-        setLoadError(getApiErrorMessage(error));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+
+    const fetchEvents = () => {
+      api.events
+        .list()
+        .then((items) => {
+          if (!active) return;
+          setEvents(items);
+        })
+        .catch((error) => {
+          if (!active) return;
+          setLoadError(getApiErrorMessage(error));
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    };
+
+    fetchEvents();
+
+    // Re-fetch when the tab regains focus so edits made in the wizard
+    // (another tab or a back-navigation) are reflected immediately.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        fetchEvents();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       active = false;
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -99,12 +164,14 @@ export default function ExploreEventsPage() {
         organizer.includes(search.toLowerCase()) ||
         category.includes(search.toLowerCase());
 
-      const start = event.startTime || event.eventDate || event.endTime || new Date().toISOString();
-      const end = event.endTime || event.startTime || event.eventDate || new Date().toISOString();
-      const timeline = classifyEvent(start, end);
+      // Use startDate/endDate (calendar range) for classification.
+      // Fall back to eventDate for legacy single-day events.
+      const start = event.startDate || event.eventDate || "";
+      const end = event.endDate || event.startDate || event.eventDate || "";
+      const timeline = (start && end) ? classifyEvent(start, end) : "upcoming";
       const matchTimeline =
         selectedTimeline === "all"
-          ? timeline === "ongoing" || timeline === "upcoming"
+          ? true                        // "All Events" shows every timeline bucket
           : timeline === selectedTimeline;
 
       return matchSearch && matchTimeline;
@@ -223,9 +290,18 @@ export default function ExploreEventsPage() {
               }
             >
               {filteredEvents.map((event) => {
-                const start = event.startTime || event.eventDate || "";
-                const end = event.endTime || start || "";
-                const timeline = classifyEvent(start || new Date().toISOString(), end || new Date().toISOString());
+                const start = event.startDate || event.eventDate || "";
+                const end = event.endDate || event.startDate || event.eventDate || "";
+                const timeline = classifyEvent(
+                  start || new Date().toISOString(),
+                  end || new Date().toISOString(),
+                );
+
+                // Use startTime / endTime for the time-of-day display on the card.
+                // These fields hold the actual clock time the admin set (e.g. 09:00 – 17:00).
+                // startDate / endDate are date-range boundaries and must NOT be used here.
+                const timeStart = event.startTime || "";
+                const timeEnd = event.endTime || "";
 
                 const venue = (event.venue as string) || "Campus Venue";
                 const eventCategory = (event.category as string) || "General";
@@ -285,12 +361,12 @@ export default function ExploreEventsPage() {
                         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--accent)] font-[family-name:var(--font-mono)]">
                           <span className="flex items-center gap-1.5">
                             <Calendar className="h-3.5 w-3.5" />
-                            {formatLongDate(start)}
+                            {formatEventDate(event)}
                           </span>
                           <span className="text-[var(--col-dim)]">•</span>
                           <span className="flex items-center gap-1.5">
                             <Clock3 className="h-3.5 w-3.5" />
-                            {formatTimeRange(start, end)}
+                            {formatTimeRange(timeStart, timeEnd)}
                           </span>
                         </div>
 
