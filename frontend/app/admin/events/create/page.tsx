@@ -7,6 +7,7 @@ import { Squircle } from "@squircle-js/react";
 import {
   api,
   getApiErrorMessage,
+  type DayLabel,
   type RegistrationField,
   type AgendaItem,
   type Speaker,
@@ -51,6 +52,8 @@ type EventDraft = {
   description: string;
   bannerUrl: string;
   eventDate: string;
+  startDate: string;
+  endDate: string;
   startTime: string;
   endTime: string;
   venue: string;
@@ -65,6 +68,7 @@ type EventDraft = {
   ticketReleaseCustomDate: string;
   scannedFieldsConfig: string[];
   volunteers: Volunteer[];
+  dayLabels: DayLabel[];
 };
 
 const REGISTRATION_FIELD_LIBRARY: RegistrationField[] = [
@@ -99,6 +103,8 @@ const INITIAL_DRAFT: EventDraft = {
   description: "",
   bannerUrl: "",
   eventDate: new Date().toISOString().split("T")[0],
+  startDate: new Date().toISOString().split("T")[0],
+  endDate: new Date().toISOString().split("T")[0],
   startTime: `${new Date().toISOString().split("T")[0]}T09:00`,
   endTime: `${new Date().toISOString().split("T")[0]}T17:00`,
   venue: "Seminar Hall 2",
@@ -113,6 +119,7 @@ const INITIAL_DRAFT: EventDraft = {
   ticketReleaseCustomDate: "",
   scannedFieldsConfig: ["FULL_NAME", "EMAIL", "UNIVERSITY_ID", "PHONE_NUMBER", "DEPARTMENT"],
   volunteers: [],
+  dayLabels: [],
 };
 
 const glassStyle = {
@@ -252,30 +259,72 @@ export default function CreateEventPage() {
       if (eventData) {
         // Track the existing event status so we can use resubmit vs submit appropriately
         setEventStatus(eventData.status || null);
-        setDraft((prev) => ({
-          ...prev,
-          title: eventData.title || "",
-          description: eventData.description || "",
-          bannerUrl: eventData.bannerUrl || "",
-          eventDate: eventData.eventDate ? eventData.eventDate.split("T")[0] : prev.eventDate,
-          startTime: eventData.startTime ? eventData.startTime.slice(0, 16) : prev.startTime,
-          endTime: eventData.endTime ? eventData.endTime.slice(0, 16) : prev.endTime,
-          venue: eventData.venue || "",
-          communityId: eventData.communityId || prev.communityId,
-          clubId: eventData.clubId || prev.clubId,
-          agenda:
-            agendaRes.status === "fulfilled" && Array.isArray(agendaRes.value)
-              ? (agendaRes.value as AgendaItem[])
-              : prev.agenda,
-          speakers:
-            speakersRes.status === "fulfilled" && Array.isArray(speakersRes.value)
-              ? (speakersRes.value as Speaker[])
-              : prev.speakers,
-          sponsors:
-            sponsorsRes.status === "fulfilled" && Array.isArray(sponsorsRes.value)
-              ? (sponsorsRes.value as Sponsor[])
-              : prev.sponsors,
-        }));
+
+        // Convert a full ISO datetime string into "YYYY-MM-DDTHH:mm" (local-naive)
+        // for use in <input type="datetime-local">. Returns null when the input
+        // is absent or unparseable so the caller can fall back to prev draft value.
+        const toDateTimeLocal = (isoStr: string | undefined | null, datePart: string): string | null => {
+          if (!isoStr) return null;
+          try {
+            const d = new Date(isoStr);
+            if (isNaN(d.getTime())) return null;
+            const hh = String(d.getHours()).padStart(2, "0");
+            const mm = String(d.getMinutes()).padStart(2, "0");
+            return `${datePart}T${hh}:${mm}`;
+          } catch {
+            return null;
+          }
+        };
+
+        setDraft((prev) => {
+          // ── Normalize date strings ──────────────────────────────────────
+          const resolvedStartDate = eventData.startDate
+            ? eventData.startDate.split("T")[0]
+            : (eventData.eventDate ? eventData.eventDate.split("T")[0] : prev.startDate);
+          const resolvedEndDate = eventData.endDate
+            ? eventData.endDate.split("T")[0]
+            : (eventData.eventDate ? eventData.eventDate.split("T")[0] : prev.endDate);
+
+          // ── Normalize time strings (preserve prev if server has no value) ─
+          const resolvedStartTime = toDateTimeLocal(eventData.startTime, resolvedStartDate) ?? prev.startTime;
+          const resolvedEndTime = toDateTimeLocal(eventData.endTime, resolvedEndDate) ?? prev.endTime;
+
+          return {
+            ...prev,
+            title: eventData.title || "",
+            description: eventData.description || "",
+            bannerUrl: eventData.bannerUrl || "",
+            eventDate: resolvedStartDate,
+            startDate: resolvedStartDate,
+            endDate: resolvedEndDate,
+            startTime: resolvedStartTime,
+            endTime: resolvedEndTime,
+            venue: eventData.venue || "",
+            communityId: eventData.communityId || prev.communityId,
+            clubId: eventData.clubId || prev.clubId,
+            // Hydrate dayLabels from the server's EventDay array.
+            // Preserve existing titles when the server has no days yet.
+            dayLabels: Array.isArray(eventData.days) && eventData.days.length > 0
+              ? eventData.days.map((d: { dayNumber: number; title?: string; date: string }) => ({
+                dayNumber: d.dayNumber,
+                title: d.title ?? `Day ${d.dayNumber}`,
+                date: d.date ? d.date.split("T")[0] : undefined,
+              }))
+              : prev.dayLabels,
+            agenda:
+              agendaRes.status === "fulfilled" && Array.isArray(agendaRes.value)
+                ? (agendaRes.value as AgendaItem[])
+                : prev.agenda,
+            speakers:
+              speakersRes.status === "fulfilled" && Array.isArray(speakersRes.value)
+                ? (speakersRes.value as Speaker[])
+                : prev.speakers,
+            sponsors:
+              sponsorsRes.status === "fulfilled" && Array.isArray(sponsorsRes.value)
+                ? (sponsorsRes.value as Sponsor[])
+                : prev.sponsors,
+          };
+        });
         if (eventData.bannerUrl) setCover(eventData.bannerUrl);
       }
 
@@ -335,17 +384,38 @@ export default function CreateEventPage() {
     try {
       let activeEventId = currentEventId;
 
+      // ── Build the event payload, keeping dates in UTC to prevent timezone
+      // shifting. The admin picks dates/times as local calendar values (e.g.
+      // "18 Oct 2026", "09:00") so we must send them as UTC equivalents by
+      // appending 'Z' directly to the date string, not by using new Date()
+      // which interprets the string in local time and shifts it.
+      const toUtcDate = (localDate: string) =>
+        `${localDate}T00:00:00.000Z`;
+
+      // For time fields the draft stores "YYYY-MM-DDTHH:mm". Split the two
+      // parts and build a UTC ISO string so the HH:mm the admin typed is what
+      // the backend stores, not HH:mm minus the UTC offset.
+      const toUtcDateTime = (localDateTime: string) => {
+        if (!localDateTime) return undefined;
+        const [datePart, timePart] = localDateTime.split("T");
+        if (!datePart || !timePart) return undefined;
+        return `${datePart}T${timePart}:00.000Z`;
+      };
+
       const eventPayload = {
         title: draft.title.trim() || "Untitled Event Draft",
         ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
-        // Only send bannerUrl if it's a real URL (not a data URI that's too large for the validator)
+        // Only send bannerUrl if it's a real URL (not a data URI too large for the validator)
         ...(draft.bannerUrl && draft.bannerUrl.startsWith("http") ? { bannerUrl: draft.bannerUrl } : {}),
-        eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
-        ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
-        ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+        eventDate: toUtcDate(draft.eventDate),
+        startDate: toUtcDate(draft.startDate),
+        endDate: toUtcDate(draft.endDate),
+        ...(draft.startTime ? { startTime: toUtcDateTime(draft.startTime) } : {}),
+        ...(draft.endTime ? { endTime: toUtcDateTime(draft.endTime) } : {}),
         ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
         ...(draft.communityId ? { communityId: draft.communityId } : {}),
         ...(draft.clubId ? { clubId: draft.clubId } : {}),
+        ...(draft.dayLabels.length > 0 ? { dayLabels: draft.dayLabels } : {}),
       };
 
       if (activeEventId) {
@@ -357,9 +427,10 @@ export default function CreateEventPage() {
         window.history.replaceState(null, "", `${window.location.pathname}?event=${created.id}`);
       }
 
-      // Save agenda items
+      // Save agenda items — skip rows with no meaningful title
       if (activeEventId && draft.agenda.length > 0) {
         for (const item of draft.agenda) {
+          if (!item.title?.trim()) continue;          // skip blank/unsaved rows
           const agendaPayload = {
             title: item.title || "Session",
             description: item.description,
@@ -457,12 +528,15 @@ export default function CreateEventPage() {
           title: draft.title.trim() || "Untitled Event Draft",
           ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
           ...(draft.bannerUrl.trim() ? { bannerUrl: draft.bannerUrl.trim() } : {}),
-          eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
-          ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
-          ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+          eventDate: `${draft.eventDate}T00:00:00.000Z`,
+          startDate: `${draft.startDate}T00:00:00.000Z`,
+          endDate: `${draft.endDate}T00:00:00.000Z`,
+          ...(draft.startTime ? { startTime: `${draft.startTime.slice(0, 10)}T${draft.startTime.slice(11, 16)}:00.000Z` } : {}),
+          ...(draft.endTime ? { endTime: `${draft.endTime.slice(0, 10)}T${draft.endTime.slice(11, 16)}:00.000Z` } : {}),
           ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
           ...(draft.communityId ? { communityId: draft.communityId } : {}),
           ...(draft.clubId ? { clubId: draft.clubId } : {}),
+          ...(draft.dayLabels.length > 0 ? { dayLabels: draft.dayLabels } : {}),
         });
         activeEventId = created.id;
         setCurrentEventId(created.id);
@@ -503,9 +577,11 @@ export default function CreateEventPage() {
           title: draft.title.trim() || "Untitled Event Draft",
           ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
           ...(draft.bannerUrl.trim() ? { bannerUrl: draft.bannerUrl.trim() } : {}),
-          eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
-          ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
-          ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+          eventDate: `${draft.eventDate}T00:00:00.000Z`,
+          startDate: `${draft.startDate}T00:00:00.000Z`,
+          endDate: `${draft.endDate}T00:00:00.000Z`,
+          ...(draft.startTime ? { startTime: `${draft.startTime.slice(0, 10)}T${draft.startTime.slice(11, 16)}:00.000Z` } : {}),
+          ...(draft.endTime ? { endTime: `${draft.endTime.slice(0, 10)}T${draft.endTime.slice(11, 16)}:00.000Z` } : {}),
           ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
           ...(draft.communityId ? { communityId: draft.communityId } : {}),
           ...(draft.clubId ? { clubId: draft.clubId } : {}),
@@ -513,6 +589,7 @@ export default function CreateEventPage() {
           ticketReleaseHours: draft.ticketReleaseHours,
           ticketReleaseCustomDate: draft.ticketReleaseCustomDate || undefined,
           scannedFieldsConfig: draft.scannedFieldsConfig,
+          ...(draft.dayLabels.length > 0 ? { dayLabels: draft.dayLabels } : {}),
         });
         activeEventId = created.id;
         setCurrentEventId(created.id);
@@ -539,6 +616,16 @@ export default function CreateEventPage() {
   const publish = async () => {
     setPublishError("");
     setPublishing(true);
+
+    // ── Determine the action based on current event status ──────────────────
+    // APPROVED / PUBLISHED / PENDING_APPROVAL → just PATCH, never re-submit.
+    // CHANGES_REQUESTED → PATCH + resubmit.
+    // DRAFT / null (new) → PATCH/create + submit.
+    const isExistingLiveEvent =
+      eventStatus === "APPROVED" ||
+      eventStatus === "PUBLISHED" ||
+      eventStatus === "PENDING_APPROVAL";
+
     try {
       let activeEventId = currentEventId;
 
@@ -547,24 +634,30 @@ export default function CreateEventPage() {
           title: draft.title.trim(),
           ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
           ...(draft.bannerUrl.trim() ? { bannerUrl: draft.bannerUrl.trim() } : {}),
-          eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
-          ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
-          ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+          eventDate: `${draft.eventDate}T00:00:00.000Z`,
+          startDate: `${draft.startDate}T00:00:00.000Z`,
+          endDate: `${draft.endDate}T00:00:00.000Z`,
+          ...(draft.startTime ? { startTime: `${draft.startTime.slice(0, 10)}T${draft.startTime.slice(11, 16)}:00.000Z` } : {}),
+          ...(draft.endTime ? { endTime: `${draft.endTime.slice(0, 10)}T${draft.endTime.slice(11, 16)}:00.000Z` } : {}),
           ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
           ...(draft.communityId ? { communityId: draft.communityId } : {}),
           ...(draft.clubId ? { clubId: draft.clubId } : {}),
+          ...(draft.dayLabels.length > 0 ? { dayLabels: draft.dayLabels } : {}),
         });
       } else {
         const created = await api.events.create({
           title: draft.title.trim(),
           ...(draft.description.trim() ? { description: draft.description.trim() } : {}),
           ...(draft.bannerUrl.trim() ? { bannerUrl: draft.bannerUrl.trim() } : {}),
-          eventDate: new Date(`${draft.eventDate}T00:00:00`).toISOString(),
-          ...(draft.startTime ? { startTime: new Date(draft.startTime).toISOString() } : {}),
-          ...(draft.endTime ? { endTime: new Date(draft.endTime).toISOString() } : {}),
+          eventDate: `${draft.eventDate}T00:00:00.000Z`,
+          startDate: `${draft.startDate}T00:00:00.000Z`,
+          endDate: `${draft.endDate}T00:00:00.000Z`,
+          ...(draft.startTime ? { startTime: `${draft.startTime.slice(0, 10)}T${draft.startTime.slice(11, 16)}:00.000Z` } : {}),
+          ...(draft.endTime ? { endTime: `${draft.endTime.slice(0, 10)}T${draft.endTime.slice(11, 16)}:00.000Z` } : {}),
           ...(draft.venue.trim() ? { venue: draft.venue.trim() } : {}),
           ...(draft.communityId ? { communityId: draft.communityId } : {}),
           ...(draft.clubId ? { clubId: draft.clubId } : {}),
+          ...(draft.dayLabels.length > 0 ? { dayLabels: draft.dayLabels } : {}),
         });
         activeEventId = created.id;
         setCurrentEventId(created.id);
@@ -632,7 +725,10 @@ export default function CreateEventPage() {
 
         // Submit or Resubmit for approval depending on current event status
         try {
-          if (eventStatus === "CHANGES_REQUESTED") {
+          if (isExistingLiveEvent) {
+            // APPROVED / PUBLISHED / PENDING_APPROVAL — just save, no status change.
+            // The PATCH above already persisted all changes; nothing more to do.
+          } else if (eventStatus === "CHANGES_REQUESTED") {
             await api.events.resubmit(activeEventId);
           } else {
             await api.events.submit(activeEventId);
@@ -767,12 +863,20 @@ export default function CreateEventPage() {
               {step === 2 && (
                 <Agenda
                   agenda={draft.agenda}
-                  addAgenda={() =>
+                  dayLabels={draft.dayLabels}
+                  startDate={draft.startDate}
+                  endDate={draft.endDate}
+                  defaultStartTime={draft.startTime}
+                  defaultEndTime={draft.endTime}
+                  addAgenda={(dayDate?: string) => {
+                    const base = dayDate || draft.startDate || draft.startTime?.slice(0, 10) || new Date().toISOString().split("T")[0];
+                    const tp = draft.startTime ? draft.startTime.slice(11, 16) : "09:00";
+                    const tpEnd = draft.endTime ? draft.endTime.slice(11, 16) : "17:00";
                     updateDraft("agenda", [
                       ...draft.agenda,
-                      { id: "", title: "", description: "", startTime: draft.startTime, endTime: draft.endTime, displayOrder: draft.agenda.length + 1 },
-                    ])
-                  }
+                      { id: "", title: "", description: "", startTime: `${base}T${tp}`, endTime: `${base}T${tpEnd}`, displayOrder: draft.agenda.length + 1 },
+                    ]);
+                  }}
                   updateAgenda={(index, key, value) =>
                     updateDraft("agenda", draft.agenda.map((item, i) => (i === index ? { ...item, [key]: value } : item)))
                   }
@@ -839,7 +943,7 @@ export default function CreateEventPage() {
                 />
               )}
               {step === 7 && <Preview draft={draft} cover={cover} />}
-              {step === 8 && <PublishReview draft={draft} cover={cover} onPublish={publish} publishing={publishing} eventStatus={eventStatus} />}
+              {step === 8 && <PublishReview draft={draft} cover={cover} onPublish={publish} publishing={publishing} eventStatus={eventStatus} isExistingLiveEvent={!!(eventStatus === "APPROVED" || eventStatus === "PUBLISHED" || eventStatus === "PENDING_APPROVAL")} />}
             </Squircle>
           </div>
         </>
@@ -935,7 +1039,15 @@ export default function CreateEventPage() {
                 disabled={publishing || !accessToken}
                 className="inline-flex items-center gap-2 px-5 py-2.5 text-[0.74rem] font-medium bg-[var(--accent)] text-white rounded-[12px] hover:opacity-85 transition-opacity font-[family-name:var(--font-display)] disabled:opacity-50 cursor-pointer"
               >
-                {publishing ? "Publishing..." : "Submit Event"} <Check className="w-3.5 h-3.5" />
+                {publishing
+                  ? "Saving..."
+                  : (eventStatus === "APPROVED" || eventStatus === "PUBLISHED" || eventStatus === "PENDING_APPROVAL")
+                    ? "Save Changes"
+                    : eventStatus === "CHANGES_REQUESTED"
+                      ? "Resubmit for Approval"
+                      : "Submit for Approval"
+                }
+                <Check className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -1134,19 +1246,150 @@ function BasicInfo({
 }
 
 function Details({ draft, updateDraft }: { draft: EventDraft; updateDraft: <K extends keyof EventDraft>(key: K, value: EventDraft[K]) => void }) {
+  // ─── helpers ───────────────────────────────────────────────────────────────
+  const computeTotalDays = (start: string, end: string): number => {
+    if (!start || !end) return 1;
+    const diff = Math.round(
+      (new Date(`${end}T00:00:00`).getTime() - new Date(`${start}T00:00:00`).getTime()) / 86400000
+    ) + 1;
+    return diff > 0 ? diff : 1;
+  };
+
+  const buildDayLabels = (start: string, end: string, existing: typeof draft.dayLabels) => {
+    const total = computeTotalDays(start, end);
+    const titleMap = new Map(existing.map((d) => [d.dayNumber, d.title]));
+    return Array.from({ length: total }, (_, i) => {
+      const dayNum = i + 1;
+      const d = new Date(new Date(`${start}T00:00:00`).getTime() + i * 86400000);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      return { dayNumber: dayNum, title: titleMap.get(dayNum) ?? `Day ${dayNum}`, date: dateStr };
+    });
+  };
+
+  const totalDays = computeTotalDays(draft.startDate, draft.endDate);
+  const isMultiDay = totalDays > 1;
+
+  // ─── handlers ──────────────────────────────────────────────────────────────
+  const handleStartDate = (val: string) => {
+    const clampedEnd = draft.endDate && draft.endDate >= val ? draft.endDate : val;
+    updateDraft("startDate", val);
+    updateDraft("eventDate", val); // backward compat
+    updateDraft("endDate", clampedEnd);
+    const tp = draft.startTime ? draft.startTime.slice(11, 16) : "09:00";
+    updateDraft("startTime", `${val}T${tp}`);
+    updateDraft("dayLabels", buildDayLabels(val, clampedEnd, draft.dayLabels));
+  };
+
+  const handleEndDate = (val: string) => {
+    updateDraft("endDate", val);
+    updateDraft("dayLabels", buildDayLabels(draft.startDate || val, val, draft.dayLabels));
+  };
+
+  const updateDayLabel = (dayNumber: number, title: string) =>
+    updateDraft("dayLabels", draft.dayLabels.map((d) => (d.dayNumber === dayNumber ? { ...d, title } : d)));
+
+  // ─── render ────────────────────────────────────────────────────────────────
   return (
     <div>
-      <StepIntro number="02" title="Date & Venue" description="Specify the schedule and location for your attendees." />
+      <StepIntro number="02" title="Date &amp; Venue" description="Specify the schedule and location for your attendees." />
       <div className="space-y-5 mt-7">
-        <Field label="Event date">
-          <input type="date" value={draft.eventDate} onChange={(e) => updateDraft("eventDate", e.target.value)} className={inputClass} style={inputStyle} />
-        </Field>
+
+        {/* ── Start / End date row ── */}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Start date">
+            <input
+              id="event-start-date"
+              type="date"
+              value={draft.startDate}
+              onChange={(e) => handleStartDate(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+            />
+          </Field>
+          <Field label="End date">
+            <input
+              id="event-end-date"
+              type="date"
+              value={draft.endDate}
+              min={draft.startDate}
+              onChange={(e) => handleEndDate(e.target.value)}
+              className={inputClass}
+              style={inputStyle}
+            />
+          </Field>
+        </div>
+
+        {/* ── Live status badge ── */}
+        <div
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-[12px] text-[0.78rem] font-medium font-[family-name:var(--font-ui)]"
+          style={{
+            background: isMultiDay ? "var(--info-bg)" : "hsl(0 0% 94% / 0.55)",
+            border: `1px solid ${isMultiDay ? "hsl(199 89% 65% / 0.35)" : "var(--line-soft)"}`,
+            color: isMultiDay ? "var(--info)" : "var(--col-secondary)",
+            transition: "background 0.2s ease, color 0.2s ease, border-color 0.2s ease",
+          }}
+        >
+          <Info className="w-4 h-4 flex-shrink-0" />
+          {isMultiDay
+            ? `Multi-Day Event Detected: ${totalDays} Days`
+            : "Single-Day Event"}
+        </div>
+
+        {/* ── Per-day label inputs (multi-day only) ── */}
+        {isMultiDay && (
+          <div className="space-y-3">
+            <label className={labelClass}>
+              Day titles&nbsp;
+              <span
+                className="lowercase tracking-normal text-[var(--col-dim)] font-[family-name:var(--font-ui)]"
+                style={{ fontVariant: "none" }}
+              >
+                (optional — give each day a name)
+              </span>
+            </label>
+            <div className="space-y-2.5">
+              {draft.dayLabels.map((day) => (
+                <div key={day.dayNumber} className="flex items-center gap-3">
+                  {/* Day pill */}
+                  <span
+                    className="shrink-0 inline-flex items-center justify-center w-[52px] h-[38px] rounded-[10px] text-[0.68rem] font-semibold font-[family-name:var(--font-mono)] tracking-wide"
+                    style={{
+                      background: "hsl(0 0% 100% / 0.6)",
+                      border: "1px solid var(--line-soft)",
+                      color: "var(--accent)",
+                    }}
+                  >
+                    D{day.dayNumber}
+                  </span>
+                  {/* Title input */}
+                  <input
+                    id={`day-label-${day.dayNumber}`}
+                    type="text"
+                    value={day.title ?? ""}
+                    onChange={(e) => updateDayLabel(day.dayNumber, e.target.value)}
+                    placeholder={`e.g. Registration & Keynote`}
+                    className={`${inputClass} flex-1`}
+                    style={inputStyle}
+                  />
+                  {/* Date badge */}
+                  {day.date && (
+                    <span className="shrink-0 text-[0.66rem] text-[var(--col-dim)] font-[family-name:var(--font-mono)] whitespace-nowrap hidden sm:inline">
+                      {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Start / End time ── */}
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Start time (optional)">
             <input
               type="time"
               value={draft.startTime ? draft.startTime.slice(11, 16) : ""}
-              onChange={(e) => updateDraft("startTime", e.target.value ? `${draft.eventDate}T${e.target.value}` : "")}
+              onChange={(e) => updateDraft("startTime", e.target.value ? `${draft.startDate}T${e.target.value}` : "")}
               className={inputClass}
               style={inputStyle}
             />
@@ -1155,14 +1398,21 @@ function Details({ draft, updateDraft }: { draft: EventDraft; updateDraft: <K ex
             <input
               type="time"
               value={draft.endTime ? draft.endTime.slice(11, 16) : ""}
-              onChange={(e) => updateDraft("endTime", e.target.value ? `${draft.eventDate}T${e.target.value}` : "")}
+              onChange={(e) => updateDraft("endTime", e.target.value ? `${draft.endDate}T${e.target.value}` : "")}
               className={inputClass}
               style={inputStyle}
             />
           </Field>
         </div>
+
         <Field label="Venue (optional)">
-          <input value={draft.venue} onChange={(e) => updateDraft("venue", e.target.value)} placeholder="Enter venue or location" className={inputClass} style={inputStyle} />
+          <input
+            value={draft.venue}
+            onChange={(e) => updateDraft("venue", e.target.value)}
+            placeholder="Enter venue or location"
+            className={inputClass}
+            style={inputStyle}
+          />
         </Field>
       </div>
     </div>
@@ -1171,25 +1421,158 @@ function Details({ draft, updateDraft }: { draft: EventDraft; updateDraft: <K ex
 
 function Agenda({
   agenda,
+  dayLabels,
+  startDate,
+  endDate,
+  defaultStartTime,
+  defaultEndTime,
   addAgenda,
   updateAgenda,
   removeAgenda,
 }: {
   agenda: AgendaItem[];
-  addAgenda: () => void;
+  dayLabels: DayLabel[];
+  startDate: string;
+  endDate: string;
+  defaultStartTime: string;
+  defaultEndTime: string;
+  addAgenda: (dayDate?: string) => void;
   updateAgenda: (index: number, key: keyof AgendaItem, value: string | number) => void;
   removeAgenda: (index: number) => void;
 }) {
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+
+  // ── Compute multi-day status ─────────────────────────────────────────────
+  const computeTotalDays = (s: string, e: string): number => {
+    if (!s || !e) return 1;
+    const diff = Math.round(
+      (new Date(`${e}T00:00:00`).getTime() - new Date(`${s}T00:00:00`).getTime()) / 86400000
+    ) + 1;
+    return diff > 0 ? diff : 1;
+  };
+
+  const totalDays = computeTotalDays(startDate, endDate);
+  const isMultiDay = totalDays > 1;
+
+  // ── Build the effective day list ─────────────────────────────────────────
+  type DayEntry = { dayNumber: number; title: string; date: string };
+  const dayEntries: DayEntry[] = isMultiDay
+    ? (dayLabels.length > 0
+      ? dayLabels.map((d) => ({
+        dayNumber: d.dayNumber,
+        title: d.title ?? `Day ${d.dayNumber}`,
+        date: d.date ?? "",
+      }))
+      : Array.from({ length: totalDays }, (_, i) => {
+        const dt = new Date(new Date(`${startDate}T00:00:00`).getTime() + i * 86400000);
+        const dateStr = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        return { dayNumber: i + 1, title: `Day ${i + 1}`, date: dateStr };
+      }))
+    : [{ dayNumber: 1, title: "Day 1", date: startDate }];
+
+  // Clamp index
+  const safeIdx = Math.min(selectedDayIdx, dayEntries.length - 1);
+  const currentDay = dayEntries[safeIdx];
+
+  // ── Filter agenda items for the selected day ─────────────────────────────
+  const itemsForDay = (dayDate: string) => {
+    return agenda
+      .map((item, globalIdx) => ({ item, globalIdx }))
+      .filter(({ item }) => {
+        const itemDate = item.startTime ? item.startTime.slice(0, 10) : "";
+        return itemDate === dayDate;
+      });
+  };
+
+  const currentDayItems = isMultiDay ? itemsForDay(currentDay.date) : agenda.map((item, globalIdx) => ({ item, globalIdx }));
+
+  // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div>
       <StepIntro number="03" title="Build the Agenda" description="Define the sequence of sessions, keynotes, and workshops." />
-      <div className="mt-7 space-y-4">
-        {agenda.map((item, index) => (
-          <div key={index} className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] space-y-3">
+
+      {/* Multi-day tab selector */}
+      {isMultiDay && (
+        <div className="mt-6 mb-5">
+          <label className={labelClass}>Select Day to Edit Agenda</label>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {dayEntries.map((day, idx) => {
+              const itemCount = itemsForDay(day.date).length;
+              const dateShort = day.date
+                ? new Date(`${day.date}T00:00:00`).toLocaleDateString("en", { day: "numeric", month: "short" })
+                : "";
+              const active = idx === safeIdx;
+
+              return (
+                <button
+                  key={day.dayNumber}
+                  type="button"
+                  onClick={() => setSelectedDayIdx(idx)}
+                  className={`relative px-4 py-2.5 rounded-[12px] text-[0.76rem] font-medium font-[family-name:var(--font-ui)] transition-all cursor-pointer border ${active
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)] shadow-md"
+                    : "bg-[hsl(0_0%_100%_/_0.5)] text-[var(--col-secondary)] border-[var(--line-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    }`}
+                >
+                  <span className="font-bold">Day {day.dayNumber}</span>
+                  {dateShort && (
+                    <span className={`ml-1.5 ${active ? "text-white/80" : "text-[var(--col-dim)]"}`}>
+                      ({dateShort})
+                    </span>
+                  )}
+                  {itemCount > 0 && (
+                    <span
+                      className={`absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-5 h-5 rounded-full text-[0.58rem] font-bold ${active ? "bg-white text-[var(--accent)]" : "bg-[var(--accent)] text-white"
+                        }`}
+                    >
+                      {itemCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Day header (multi-day only) */}
+      {isMultiDay && (
+        <div
+          className="flex items-center gap-2.5 px-4 py-2.5 rounded-[12px] text-[0.78rem] font-medium font-[family-name:var(--font-ui)] mb-4"
+          style={{
+            background: "var(--info-bg)",
+            border: "1px solid hsl(199 89% 65% / 0.35)",
+            color: "var(--info)",
+          }}
+        >
+          <Calendar className="w-4 h-4 flex-shrink-0" />
+          Agenda for {currentDay.title}
+          {currentDay.date && (
+            <span className="text-[0.68rem] opacity-70 font-[family-name:var(--font-mono)]">
+              ({new Date(`${currentDay.date}T00:00:00`).toLocaleDateString("en", { weekday: "short", day: "numeric", month: "short" })})
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Agenda items */}
+      <div className={`${isMultiDay ? "" : "mt-7"} space-y-4`}>
+        {currentDayItems.length === 0 && (
+          <div className="text-center py-8 text-[0.82rem] text-[var(--col-dim)] font-[family-name:var(--font-ui)]">
+            No agenda items for {isMultiDay ? currentDay.title : "this event"} yet.
+          </div>
+        )}
+
+        {currentDayItems.map(({ item, globalIdx }, localIdx) => (
+          <div key={globalIdx} className="p-4 rounded-[16px] border border-[var(--line-soft)] bg-[hsl(0_0%_100%_/_0.3)] space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[0.62rem] font-bold text-[var(--accent)] font-[family-name:var(--font-mono)] uppercase tracking-wider">
+                {isMultiDay ? `Day ${currentDay.dayNumber} ·` : ""} Session {localIdx + 1}
+              </span>
+            </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_100px_36px]">
               <input
                 value={item.title}
-                onChange={(e) => updateAgenda(index, "title", e.target.value)}
+                onChange={(e) => updateAgenda(globalIdx, "title", e.target.value)}
                 placeholder="Enter session title"
                 className={inputClass}
                 style={inputStyle}
@@ -1198,38 +1581,48 @@ function Agenda({
                 type="number"
                 min="1"
                 value={item.displayOrder}
-                onChange={(e) => updateAgenda(index, "displayOrder", Number(e.target.value))}
-                placeholder="Display order"
+                onChange={(e) => updateAgenda(globalIdx, "displayOrder", Number(e.target.value))}
+                placeholder="Order"
                 className={inputClass}
                 style={inputStyle}
               />
               <button
                 type="button"
-                onClick={() => removeAgenda(index)}
+                onClick={() => removeAgenda(globalIdx)}
                 className="w-9 h-9 rounded-[10px] border border-[var(--line-soft)] text-[var(--danger)] hover:bg-[var(--danger-bg)] flex items-center justify-center transition-colors cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <input
-                type="datetime-local"
-                value={item.startTime}
-                onChange={(e) => updateAgenda(index, "startTime", e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
-              <input
-                type="datetime-local"
-                value={item.endTime || ""}
-                onChange={(e) => updateAgenda(index, "endTime", e.target.value)}
-                className={inputClass}
-                style={inputStyle}
-              />
+              <div>
+                <label className="block text-[0.6rem] font-bold text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-wider mb-1">
+                  Start Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={item.startTime}
+                  onChange={(e) => updateAgenda(globalIdx, "startTime", e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label className="block text-[0.6rem] font-bold text-[var(--col-dim)] font-[family-name:var(--font-mono)] uppercase tracking-wider mb-1">
+                  End Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={item.endTime || ""}
+                  onChange={(e) => updateAgenda(globalIdx, "endTime", e.target.value)}
+                  className={inputClass}
+                  style={inputStyle}
+                />
+              </div>
             </div>
             <textarea
               value={item.description || ""}
-              onChange={(e) => updateAgenda(index, "description", e.target.value)}
+              onChange={(e) => updateAgenda(globalIdx, "description", e.target.value)}
               placeholder="Enter session overview or topics covered"
               className={`${inputClass} resize-none`}
               style={inputStyle}
@@ -1239,10 +1632,11 @@ function Agenda({
         ))}
         <button
           type="button"
-          onClick={addAgenda}
+          onClick={() => addAgenda(isMultiDay ? currentDay.date : undefined)}
           className="inline-flex items-center gap-2 px-4 py-3 rounded-[12px] border border-dashed border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 text-[0.74rem] font-medium font-[family-name:var(--font-ui)] transition-colors cursor-pointer"
         >
-          <Plus className="w-3.5 h-3.5" /> Add agenda item
+          <Plus className="w-3.5 h-3.5" />
+          {isMultiDay ? `Add item to ${currentDay.title}` : "Add agenda item"}
         </button>
       </div>
     </div>
@@ -2105,14 +2499,27 @@ function PublishReview({
   onPublish,
   publishing,
   eventStatus,
+  isExistingLiveEvent,
 }: {
   draft: EventDraft;
   cover: string | null;
   onPublish: () => void;
   publishing: boolean;
   eventStatus: string | null;
+  isExistingLiveEvent: boolean;
 }) {
   const isResubmit = eventStatus === "CHANGES_REQUESTED";
+  // Determine the label and description for the primary action button
+  const buttonLabel = isExistingLiveEvent
+    ? "Save Changes"
+    : isResubmit
+      ? "Resubmit for Approval"
+      : "Submit Event For Approval";
+  const buttonLoadingLabel = isExistingLiveEvent
+    ? "Saving..."
+    : isResubmit
+      ? "Resubmitting..."
+      : "Submitting Event...";
   const [showPreview, setShowPreview] = useState(false);
 
   return (
@@ -2215,7 +2622,7 @@ function PublishReview({
                           <div key={i} className="flex items-center gap-3 p-3 rounded-[14px] bg-white border border-slate-100">
                             {s.photoUrl
                               ? <img src={s.photoUrl} alt={s.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                              : <div className="w-10 h-10 rounded-full bg-slate-700 text-white text-[0.68rem] font-bold flex items-center justify-center flex-shrink-0">{(s.name || "SP").slice(0,2).toUpperCase()}</div>
+                              : <div className="w-10 h-10 rounded-full bg-slate-700 text-white text-[0.68rem] font-bold flex items-center justify-center flex-shrink-0">{(s.name || "SP").slice(0, 2).toUpperCase()}</div>
                             }
                             <div className="min-w-0">
                               <p className="text-[0.82rem] font-semibold text-slate-900 font-[family-name:var(--font-display)] truncate">{s.name}</p>
@@ -2269,7 +2676,7 @@ function PublishReview({
 
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <StepIntro number="08" title="Review & Submit for Approval" description="Verify all event details and registration configuration before publishing." />
+          <StepIntro number="08" title={isExistingLiveEvent ? "Review & Save Changes" : "Review & Submit for Approval"} description="Verify all event details and registration configuration before publishing." />
           {/* Preview Webpage button — top-left of review card */}
           <button
             type="button"
@@ -2338,15 +2745,22 @@ function PublishReview({
           </div>
         )}
 
+        {isExistingLiveEvent && (
+          <div className="p-4 rounded-[14px] border border-[hsl(142_50%_45%_/_0.3)] bg-[hsl(142_60%_65%_/_0.07)]">
+            <p className="text-[0.76rem] font-semibold text-[hsl(142_50%_35%)] font-[family-name:var(--font-display)] mb-1">Editing a Live Event</p>
+            <p className="text-[0.72rem] text-[hsl(142_45%_40%)] font-[family-name:var(--font-ui)] leading-relaxed">
+              This event is currently <strong>{eventStatus}</strong>. Clicking &ldquo;Save Changes&rdquo; will update the event details without changing its approval status.
+            </p>
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onPublish}
           disabled={publishing}
           className="w-full py-3.5 rounded-[14px] bg-[var(--accent)] text-white text-[0.84rem] font-semibold font-[family-name:var(--font-display)] hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2 cursor-pointer"
         >
-          {publishing
-            ? (isResubmit ? "Resubmitting..." : "Submitting Event...")
-            : (isResubmit ? "Resubmit for Approval" : "Submit Event For Approval")}
+          {publishing ? buttonLoadingLabel : buttonLabel}
           <Check className="w-4 h-4" />
         </button>
       </div>

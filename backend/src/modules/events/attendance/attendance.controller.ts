@@ -23,6 +23,14 @@ import { UpdateTicketSettingsDto } from './dto/update-ticket-settings.dto';
 export class AttendanceController {
   constructor(private readonly attendanceService: AttendanceService) {}
 
+  @Get(':id/days')
+  getEventDays(
+    @Param('id', new ParseUUIDPipe()) eventId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendanceService.getEventDays(eventId, user);
+  }
+
   @Post(':id/attendance/scan')
   scanQr(
     @Param('id', new ParseUUIDPipe()) eventId: string,

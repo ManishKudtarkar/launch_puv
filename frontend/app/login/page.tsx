@@ -9,6 +9,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { useDemoStore } from "@/store/demo-store";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,23 @@ export default function LoginPage() {
       router.replace(ROLE_HOME[uiRole] || "/student");
     }
   }, [initialized, authUser, accessToken, router]);
+
+  // Show a session-expired toast when redirected here by the silent-refresh
+  // failure handler in api-client.ts (adds ?session=expired to the URL).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("session") === "expired") {
+      toast.warning("Your session has expired. Please log in again.", {
+        id: "session-expired",
+        duration: 6000,
+      });
+      // Remove the query param without adding a history entry so a page
+      // refresh doesn't replay the toast.
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState(null, "", cleanUrl);
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -6,14 +6,84 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
+import { EventDayLabelDto } from './dto/event-day-label.dto';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { Role } from '../../generated/prisma/enums';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { generateSlug } from '../../common/utils/slug.util';
 
+// --------------- native date helpers (no extra dependency) ---------------
+
+/** Strips the time portion and returns midnight UTC of the given date. */
+const startOfDay = (d: Date): Date =>
+  new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+
+/** Adds `n` calendar days to a Date, returning a new Date. */
+const addDays = (d: Date, n: number): Date => {
+  const result = new Date(d);
+  result.setUTCDate(result.getUTCDate() + n);
+  return result;
+};
+
+/**
+ * Returns the number of whole calendar days between two dates
+ * (ignoring time – mirrors date-fns `differenceInCalendarDays`).
+ */
+const differenceInCalendarDays = (laterDate: Date, earlierDate: Date): number =>
+  Math.round(
+    (startOfDay(laterDate).getTime() - startOfDay(earlierDate).getTime()) /
+      86_400_000,
+  );
+
+// -------------------------------------------------------------------------
+
 @Injectable()
 export class EventsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // =========================================================
+  // HELPERS
+  // =========================================================
+
+  /**
+   * Builds the list of EventDay create-payloads for a date range.
+   * @param startDate  Inclusive start (JS Date or ISO string)
+   * @param endDate    Inclusive end   (JS Date or ISO string)
+   * @param dayLabels  Optional per-day custom titles from the DTO
+   */
+  private buildEventDays(
+    startDate: Date,
+    endDate: Date,
+    dayLabels?: EventDayLabelDto[],
+  ): { dayNumber: number; date: Date; title?: string; isAttendanceActive: boolean }[] {
+    const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
+
+    if (totalDays < 1) {
+      throw new BadRequestException('endDate must be on or after startDate');
+    }
+
+    const labelMap = new Map<number, EventDayLabelDto>();
+    if (dayLabels) {
+      for (const label of dayLabels) {
+        labelMap.set(label.dayNumber, label);
+      }
+    }
+
+    return Array.from({ length: totalDays }, (_, i) => {
+      const dayNumber = i + 1;
+      const label = labelMap.get(dayNumber);
+      const date = label?.date
+        ? startOfDay(new Date(label.date))
+        : startOfDay(addDays(startDate, i));
+
+      return {
+        dayNumber,
+        date,
+        title: label?.title ?? `Day ${dayNumber}`,
+        isAttendanceActive: true,
+      };
+    });
+  }
 
   private async canManageEvent(
     event: { id: string; createdById: string; communityId?: string | null; clubId?: string | null },
@@ -100,32 +170,68 @@ export class EventsService {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const event = await this.prisma.event.create({
-      data: {
-        title: createEventDto.title,
-        slug,
-        description: createEventDto.description,
-        bannerUrl: createEventDto.bannerUrl,
+    // ── Multi-day computation ──────────────────────────────
+    const startDate = startOfDay(new Date(createEventDto.startDate));
+    const endDate   = startOfDay(new Date(createEventDto.endDate));
+    const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
 
-        eventDate: new Date(createEventDto.eventDate),
+    if (totalDays < 1) {
+      throw new BadRequestException('endDate must be on or after startDate');
+    }
 
-        startTime: createEventDto.startTime
-          ? new Date(createEventDto.startTime)
-          : undefined,
+    const isMultiDay = totalDays > 1;
+    const eventDays  = this.buildEventDays(startDate, endDate, createEventDto.dayLabels);
 
-        endTime: createEventDto.endTime
-          ? new Date(createEventDto.endTime)
-          : undefined,
+    // ── Persist inside a single transaction ───────────────
+    return this.prisma.$transaction(async (tx) => {
+      const event = await tx.event.create({
+        data: {
+          title: createEventDto.title,
+          slug,
+          description: createEventDto.description,
+          bannerUrl:   createEventDto.bannerUrl,
 
-        venue: createEventDto.venue,
+          eventDate: new Date(createEventDto.eventDate),
+          startDate,
+          endDate,
+          totalDays,
+          isMultiDay,
 
-        createdById: user.userId,
-        communityId: createEventDto.communityId,
-        clubId: createEventDto.clubId,
-      },
+          startTime: createEventDto.startTime
+            ? new Date(createEventDto.startTime)
+            : undefined,
+
+          endTime: createEventDto.endTime
+            ? new Date(createEventDto.endTime)
+            : undefined,
+
+          venue: createEventDto.venue,
+
+          createdById: user.userId,
+          communityId: createEventDto.communityId,
+          clubId:      createEventDto.clubId,
+        },
+      });
+
+      // Create one EventDay row per calendar day
+      await tx.eventDay.createMany({
+        data: eventDays.map((d) => ({
+          eventId:            event.id,
+          dayNumber:          d.dayNumber,
+          date:               d.date,
+          title:              d.title,
+          isAttendanceActive: d.isAttendanceActive,
+        })),
+      });
+
+      // Return the event together with its days
+      return tx.event.findUnique({
+        where: { id: event.id },
+        include: {
+          days: { orderBy: { dayNumber: 'asc' } },
+        },
+      });
     });
-
-    return event;
   }
 
   // =========================================================
@@ -140,6 +246,7 @@ export class EventsService {
       include: {
         community: { select: { id: true, name: true, slug: true } },
         club: { select: { id: true, name: true, slug: true } },
+        days: { orderBy: { dayNumber: 'asc' }, select: { id: true, dayNumber: true, date: true, title: true, isAttendanceActive: true } },
       },
       orderBy: {
         createdAt: 'desc',
@@ -162,6 +269,8 @@ export class EventsService {
       include: {
         community: { select: { id: true, name: true, slug: true } },
         club: { select: { id: true, name: true, slug: true } },
+        days: { orderBy: { dayNumber: 'asc' } },
+        agendaItems: { orderBy: { displayOrder: 'asc' } },
       },
     });
 
@@ -260,32 +369,83 @@ export class EventsService {
       throw new ForbiddenException('You do not have permission to edit this event');
     }
 
-    // 3. Update event
-    return this.prisma.event.update({
-      where: {
-        id,
-      },
-      data: {
-        title: updateEventDto.title,
+    // ── Recompute multi-day fields when dates are supplied ──
+    const rawStart = updateEventDto.startDate ?? event.startDate.toISOString();
+    const rawEnd   = updateEventDto.endDate   ?? event.endDate.toISOString();
 
-        description: updateEventDto.description,
+    const startDate = startOfDay(new Date(rawStart));
+    const endDate   = startOfDay(new Date(rawEnd));
+    const totalDays = differenceInCalendarDays(endDate, startDate) + 1;
 
-        bannerUrl: updateEventDto.bannerUrl,
+    if (totalDays < 1) {
+      throw new BadRequestException('endDate must be on or after startDate');
+    }
 
-        eventDate: updateEventDto.eventDate
-          ? new Date(updateEventDto.eventDate)
-          : undefined,
+    const isMultiDay = totalDays > 1;
+    const datesChanged =
+      updateEventDto.startDate !== undefined ||
+      updateEventDto.endDate   !== undefined;
 
-        startTime: updateEventDto.startTime
-          ? new Date(updateEventDto.startTime)
-          : undefined,
+    return this.prisma.$transaction(async (tx) => {
+      // Update the core event
+      const updatedEvent = await tx.event.update({
+        where: { id },
+        data: {
+          title:       updateEventDto.title,
+          description: updateEventDto.description,
+          bannerUrl:   updateEventDto.bannerUrl,
 
-        endTime: updateEventDto.endTime
-          ? new Date(updateEventDto.endTime)
-          : undefined,
+          eventDate: updateEventDto.eventDate
+            ? new Date(updateEventDto.eventDate)
+            : undefined,
 
-        venue: updateEventDto.venue,
-      },
+          startDate,
+          endDate,
+          totalDays,
+          isMultiDay,
+
+          startTime: updateEventDto.startTime
+            ? new Date(updateEventDto.startTime)
+            : undefined,
+
+          endTime: updateEventDto.endTime
+            ? new Date(updateEventDto.endTime)
+            : undefined,
+
+          venue: updateEventDto.venue,
+        },
+      });
+
+      // Sync EventDay rows only when the date range or labels change
+      if (datesChanged || updateEventDto.dayLabels !== undefined) {
+        const eventDays = this.buildEventDays(
+          startDate,
+          endDate,
+          updateEventDto.dayLabels,
+        );
+
+        // Delete all existing days (cascades to attendances/agenda via onDelete: Cascade/SetNull)
+        await tx.eventDay.deleteMany({ where: { eventId: id } });
+
+        // Re-create fresh days
+        await tx.eventDay.createMany({
+          data: eventDays.map((d) => ({
+            eventId:            id,
+            dayNumber:          d.dayNumber,
+            date:               d.date,
+            title:              d.title,
+            isAttendanceActive: d.isAttendanceActive,
+          })),
+        });
+      }
+
+      // Return updated event with its days
+      return tx.event.findUnique({
+        where: { id },
+        include: {
+          days: { orderBy: { dayNumber: 'asc' } },
+        },
+      });
     });
   }
 

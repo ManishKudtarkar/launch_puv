@@ -22,7 +22,10 @@ import { EmailModule } from '../email/email.module';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: '15m',
+          // Reads JWT_EXPIRES_IN from .env (e.g. "8h"). Falls back to "8h" so
+          // access tokens are long-lived enough that Event Admins filling long
+          // forms are never silently logged out mid-session.
+          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ?? '8h') as `${number}${'s' | 'm' | 'h' | 'd' | 'w' | 'y'}` | number,
         },
       }),
     }),
@@ -30,4 +33,4 @@ import { EmailModule } from '../email/email.module';
   controllers: [AuthController],
   providers: [AuthService, PasswordService, SessionService, JwtStrategy],
 })
-export class AuthModule {}
+export class AuthModule { }

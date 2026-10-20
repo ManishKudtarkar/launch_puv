@@ -3,6 +3,21 @@ import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/commo
 import { PrismaClient } from '../../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
+// Helper function to dynamically configure SSL based on environment/file presence
+function getSslConfig(): boolean | { ca: string; rejectUnauthorized: boolean } {
+  const certPath = process.env.RDS_CA_CERT_PATH || '/app/rds-ca-bundle.pem';
+
+  if (fs.existsSync(certPath)) {
+    return {
+      ca: fs.readFileSync(certPath, 'utf8'),
+      rejectUnauthorized: true,
+    };
+  }
+
+  // Fallback for local development when certificate file is not present locally
+  return false;
+}
+
 // ─── Dev singleton ────────────────────────────────────────────────────────────
 // NestJS hot-reload (HMR) re-instantiates every provider on each code change.
 // Without this guard, each reload creates a new PrismaClient and a new pg pool,
@@ -14,12 +29,9 @@ const globalForPrisma = globalThis as unknown as {
 
 function createClient(): PrismaClient {
   const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
-    rejectUnauthorized: true,
-  },
-});
+    connectionString: process.env.DATABASE_URL,
+    ssl: getSslConfig(),
+  });
 
   return new PrismaClient({
     adapter,
@@ -45,19 +57,12 @@ export class PrismaService
       process.env.NODE_ENV !== 'production' &&
       globalForPrisma._prismaClient
     ) {
-      super(
-        // Pass the same internal config as the cached client so the
-        // extends-PrismaClient pattern still works correctly.
-        {
-  adapter: new PrismaPg({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
-      rejectUnauthorized: true,
-    },
-  }),
-},
-      );
+      super({
+        adapter: new PrismaPg({
+          connectionString: process.env.DATABASE_URL,
+          ssl: getSslConfig(),
+        }),
+      });
       // Overwrite the internal engine reference with the cached one so all
       // queries go through the already-connected pool.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -70,14 +75,11 @@ export class PrismaService
     }
 
     const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    ca: fs.readFileSync('/app/rds-ca-bundle.pem'),
-    rejectUnauthorized: true,
-  },
-});
+      connectionString: process.env.DATABASE_URL,
+      ssl: getSslConfig(),
+    });
 
-super({ adapter });
+    super({ adapter });
 
     if (process.env.NODE_ENV !== 'production') {
       globalForPrisma._prismaClient = this;

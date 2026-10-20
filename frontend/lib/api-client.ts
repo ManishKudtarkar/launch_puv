@@ -39,12 +39,15 @@ export type RegisterRequest = {
 export type CreateUserRequest = { fullName: string; email: string; password: string; role: BackendRole; userType: UserType };
 export type LoginRequest = { email: string; password: string };
 export type EventStatus = "DRAFT" | "PENDING_APPROVAL" | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED" | "PUBLISHED" | "COMPLETED";
-export type Event = { id: string; title: string; slug?: string; description?: string; bannerUrl?: string; eventDate: string; startTime?: string; endTime?: string; venue?: string; status?: EventStatus; category?: string; organizer?: string; capacity?: number; registered?: number; communityId?: string; clubId?: string; community?: { id: string; name: string; slug: string }; club?: { id: string; name: string; slug: string };[key: string]: unknown };
+export type Event = { id: string; title: string; slug?: string; description?: string; bannerUrl?: string; eventDate: string; startDate?: string; endDate?: string; totalDays?: number; isMultiDay?: boolean; startTime?: string; endTime?: string; venue?: string; status?: EventStatus; category?: string; organizer?: string; capacity?: number; registered?: number; communityId?: string; clubId?: string; community?: { id: string; name: string; slug: string }; club?: { id: string; name: string; slug: string }; days?: { id: string; dayNumber: number; date: string; title?: string; isAttendanceActive: boolean }[];[key: string]: unknown };
+export type DayLabel = { dayNumber: number; title?: string; date?: string };
 export type CreateEventRequest = {
   title: string;
   description?: string;
   bannerUrl?: string;
   eventDate: string;
+  startDate: string;
+  endDate: string;
   startTime?: string;
   endTime?: string;
   venue?: string;
@@ -54,6 +57,7 @@ export type CreateEventRequest = {
   ticketReleaseHours?: number;
   ticketReleaseCustomDate?: string;
   scannedFieldsConfig?: string[];
+  dayLabels?: DayLabel[];
 };
 export type UpdateEventRequest = Partial<CreateEventRequest>;
 export type AgendaItem = { id: string; title: string; description?: string; startTime: string; endTime?: string; displayOrder: number };
@@ -88,7 +92,51 @@ export type ScanResult = {
   firstScannedBy?: string;
   visibleFields: Record<string, string>;
   scanHistory?: Array<{ volunteerId: string; volunteerName: string; scannedAt: string; scanNumber?: number }>;
+  eventDayId?: string;
 };
+export type EventDay = {
+  id: string;
+  dayNumber: number;
+  date: string;
+  title?: string;
+  isAttendanceActive: boolean;
+};
+export type AnalyticsRow = {
+  name: string;
+  email: string;
+  ticketToken: string | null;
+  registeredAt: string;
+  checkedInAt: string | null;
+  checkedInBy: string | null;
+  status: "PRESENT" | "ABSENT";
+};
+export type AnalyticsDaySummary = {
+  type: "day";
+  dayId: string;
+  dayNumber: number;
+  dayTitle: string;
+  date: string;
+  totalRegistered: number;
+  totalPresent: number;
+  totalAbsent: number;
+  turnoutRate: number;
+  rows: AnalyticsRow[];
+};
+export type AnalyticsCumulativeSummary = {
+  type: "cumulative";
+  eventTitle: string;
+  totalRegistered: number;
+  totalPresent: number;
+  totalAbsent: number;
+  turnoutRate: number;
+  rows: AnalyticsRow[];
+};
+export type AnalyticsMultiDaySummary = {
+  type: "multi_day";
+  eventTitle: string;
+  days: AnalyticsDaySummary[];
+};
+export type AnalyticsResult = AnalyticsCumulativeSummary | AnalyticsDaySummary | AnalyticsMultiDaySummary;
 export type AttendanceItem = {
   id: string;
   ticketToken?: string;
@@ -219,6 +267,28 @@ const eventListCache = {
 };
 const eventDetailCache = new Map<string, { promise: Promise<Event>; expiresAt: number }>();
 
+/**
+ * Bust every cached event snapshot so the next list/detail request hits the
+ * network. Call this after any mutation that changes event data visible on
+ * public or admin pages (create, update, publish, submit).
+ */
+export function invalidateEventCaches(eventId?: string) {
+  eventListCache.promise = null;
+  eventListCache.expiresAt = 0;
+  if (eventId) {
+    eventDetailCache.delete(eventId);
+  } else {
+    eventDetailCache.clear();
+  }
+}
+
+/** Redirect to /login with ?session=expired so the login page can show a toast. */
+function redirectSessionExpired() {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
+  window.location.assign("/login?session=expired");
+}
+
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -245,15 +315,17 @@ client.interceptors.response.use(
           if (originalRequest.headers) originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return client.request(originalRequest);
         } catch {
+          // Refresh token itself is expired or revoked — session is fully dead.
           refreshQueue = [];
           clearAuthStorage();
-          if (typeof window !== "undefined" && window.location.pathname !== "/login") window.location.assign("/login");
+          redirectSessionExpired();
         } finally {
           isRefreshing = false;
         }
       } else {
+        // No refresh session at all — never logged in or storage was cleared.
         clearAuthStorage();
-        if (typeof window !== "undefined" && window.location.pathname !== "/login") window.location.assign("/login");
+        redirectSessionExpired();
       }
     }
     return Promise.reject(error);
@@ -287,7 +359,13 @@ export const api = {
     delete: (id: string) => request<{ message: string; userId: string }>({ method: "DELETE", url: `/users/${id}` }),
   },
   events: {
-    create: (body: CreateEventRequest) => request<Event>({ method: "POST", url: "/events", data: body }),
+    create: (body: CreateEventRequest) => {
+      // Bust list cache so the new event appears immediately on explore-events
+      // and admin event lists without waiting for the 30s TTL to expire.
+      eventListCache.promise = null;
+      eventListCache.expiresAt = 0;
+      return request<Event>({ method: "POST", url: "/events", data: body });
+    },
     list: () => {
       const now = Date.now();
       if (!eventListCache.promise || now > eventListCache.expiresAt) {
@@ -313,9 +391,18 @@ export const api = {
       return request<Event>({ method: "PATCH", url: `/events/${id}`, data: body });
     },
     remove: (id: string) => request<{ message: string }>({ method: "DELETE", url: `/events/${id}` }),
-    submit: (id: string) => request<Event>({ method: "POST", url: `/events/${id}/submit` }),
-    resubmit: (id: string) => request<Event>({ method: "POST", url: `/events/${id}/resubmit` }),
-    publish: (id: string) => request<Event>({ method: "POST", url: `/events/${id}/publish` }),
+    submit: (id: string) => {
+      eventListCache.promise = null; eventListCache.expiresAt = 0; eventDetailCache.delete(id);
+      return request<Event>({ method: "POST", url: `/events/${id}/submit` });
+    },
+    resubmit: (id: string) => {
+      eventListCache.promise = null; eventListCache.expiresAt = 0; eventDetailCache.delete(id);
+      return request<Event>({ method: "POST", url: `/events/${id}/resubmit` });
+    },
+    publish: (id: string) => {
+      eventListCache.promise = null; eventListCache.expiresAt = 0; eventDetailCache.delete(id);
+      return request<Event>({ method: "POST", url: `/events/${id}/publish` });
+    },
     agenda: {
       create: (eventId: string, body: AgendaRequest) => request<AgendaItem>({ method: "POST", url: `/events/${eventId}/agenda`, data: body }),
       list: (eventId: string) => request<AgendaItem[]>({ method: "GET", url: `/events/${eventId}/agenda` }),
@@ -360,8 +447,11 @@ export const api = {
       list: (eventId: string) => request<Volunteer[]>({ method: "GET", url: `/events/${eventId}/volunteers` }),
       remove: (eventId: string, volunteerId: string) => request<{ message: string }>({ method: "DELETE", url: `/events/${eventId}/volunteers/${volunteerId}` }),
     },
+    days: {
+      list: (eventId: string) => request<EventDay[]>({ method: "GET", url: `/events/${eventId}/days` }),
+    },
     attendance: {
-      scan: (eventId: string, ticketToken: string) => request<ScanResult>({ method: "POST", url: `/events/${eventId}/attendance/scan`, data: { ticketToken } }),
+      scan: (eventId: string, ticketToken: string, eventDayId?: string) => request<ScanResult>({ method: "POST", url: `/events/${eventId}/attendance/scan`, data: { ticketToken, ...(eventDayId ? { eventDayId } : {}) } }),
       list: (eventId: string) => request<AttendanceResponse>({ method: "GET", url: `/events/${eventId}/attendance/list` }),
     },
     ticketSettings: {
@@ -384,6 +474,37 @@ export const api = {
       approve: (id: string, remarks?: string) => request<Event>({ method: "PATCH", url: `/admin/events/${id}/approve`, data: { remarks } }),
       requestChanges: (id: string, remarks?: string) => request<Event>({ method: "PATCH", url: `/admin/events/${id}/request-changes`, data: { remarks } }),
       reject: (id: string, remarks?: string) => request<Event>({ method: "PATCH", url: `/admin/events/${id}/reject`, data: { remarks } }),
+    },
+    analytics: {
+      get: (eventId: string, params: { dayId?: string; status?: "ALL" | "PRESENT" | "ABSENT" }) =>
+        request<AnalyticsResult>({ method: "GET", url: `/events/${eventId}/analytics`, params }),
+    },
+    export: {
+      /** Returns a URL to trigger a browser file download — use as <a href> or window.location */
+      url: (eventId: string, params: { dayId?: string; status?: "ALL" | "PRESENT" | "ABSENT" }) => {
+        const token = getAccessToken();
+        const qs = new URLSearchParams();
+        if (params.dayId) qs.set("dayId", params.dayId);
+        if (params.status) qs.set("status", params.status);
+        if (token) qs.set("_token", token); // fallback for download links
+        return `${API_URL}/events/${eventId}/export?${qs.toString()}`;
+      },
+      /** Fetches the Excel workbook as a Blob and triggers a client-side download */
+      download: async (eventId: string, params: { dayId?: string; status?: "ALL" | "PRESENT" | "ABSENT" }, filename: string) => {
+        const token = getAccessToken();
+        const qs = new URLSearchParams();
+        if (params.dayId) qs.set("dayId", params.dayId);
+        if (params.status && params.status !== "ALL") qs.set("status", params.status);
+        const res = await fetch(`${API_URL}/events/${eventId}/export?${qs.toString()}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = filename.endsWith(".xlsx") ? filename : filename.replace(/\.[^.]+$/, ".xlsx"); a.click();
+        URL.revokeObjectURL(url);
+      },
     },
   },
   communities: {

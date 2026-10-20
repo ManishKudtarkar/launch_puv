@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsDateString,
   IsNotEmpty,
   IsOptional,
@@ -7,7 +8,10 @@ import {
   IsUUID,
   MaxLength,
   Matches,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { EventDayLabelDto } from './event-day-label.dto';
 
 export class CreateEventDto {
   @IsString()
@@ -30,6 +34,20 @@ export class CreateEventDto {
 
   @IsDateString()
   eventDate!: string;
+
+  /**
+   * Inclusive start date of the event (ISO-8601 date string).
+   * For single-day events this should equal endDate.
+   */
+  @IsDateString()
+  startDate!: string;
+
+  /**
+   * Inclusive end date of the event (ISO-8601 date string).
+   * For single-day events this should equal startDate.
+   */
+  @IsDateString()
+  endDate!: string;
 
   @IsOptional()
   @IsDateString()
@@ -65,5 +83,15 @@ export class CreateEventDto {
 
   @IsOptional()
   scannedFieldsConfig?: string[];
+
+  /**
+   * Optional per-day custom titles for multi-day events.
+   * If omitted, days are auto-generated with generic labels ("Day 1", "Day 2" …).
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EventDayLabelDto)
+  dayLabels?: EventDayLabelDto[];
 }
 
